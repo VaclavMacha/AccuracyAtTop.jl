@@ -156,6 +156,7 @@ macro tracktime(expr)
         reset_timer!()
         $(esc(expr))
         print_timer()
+        println()
     end
 end
 
@@ -163,11 +164,6 @@ end
 # -------------------------------------------------------------------------------
 # auxiliary functions
 # -------------------------------------------------------------------------------
-function scores(model::Model, x)
-    return model.classifier(x)
-end
-
-
 function cpu(model_in::Model)
     model = deepcopy(model_in)
     model.classifier = cpu(model.classifier)
@@ -178,7 +174,7 @@ end
 function gpu(model_in::Model)
     model = deepcopy(model_in)
     model.classifier = gpu(model.classifier)
-    return mdl
+    return model
 end
 
 
@@ -188,7 +184,32 @@ end
 
 
 # -------------------------------------------------------------------------------
+# auxiliary threshold functions
+# -------------------------------------------------------------------------------
+function findkth(x, k::Int; rev::Bool = false)
+    n = length(x)
+    1 <= k <= n || throw(ArgumentError("input index out of {1,$n} set"))
+
+    ind = partialsortperm(x, k, rev = rev)
+    return x[ind], ind
+end
+
+
+function findquantile(x, p)
+    0 <= p <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
+
+    if p <= 0.5
+        k = floor(Int64, length(x)*p)
+        return findkth(x, k; rev = false)
+    else
+        k = floor(Int64, length(x)*(1 - p)) + 1
+        return findkth(x, k; rev = true)
+    end
+end
+
+
+# -------------------------------------------------------------------------------
 # save and load model
 # -------------------------------------------------------------------------------
 save_model(name, model) = BSON.bson(name, model = cpu(model))
-load_model(name)        = BSON.load(name)
+load_model(name)        = BSON.load(name)[:model]

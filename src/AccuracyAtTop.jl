@@ -18,9 +18,10 @@ export loss, scores, threshold, train!, @runepochs, @tracktime,
        make_minibatch, reshape_data,
        Hinge, Quadratic, BinCrossEntropy, FNR,
        allow_cuda, status_cuda,
-       ScoreBuffer,
-       Model, Simple,
-       ThresholdModel, TopPush, TopPushK, PatMat, PatMatNP,
+       Buffer, NoBuffer, ScoresDelay, LastThreshold,
+       Model,
+       BaseLineModel, BaseLine,
+       ThresholdModel, TopPush, TopPushK, PatMat, PatMatNP, PrecAtRec,
        test_gradient
 
 
@@ -48,12 +49,17 @@ end
 # Abstract types #
 ##################
 abstract type Model; end
-abstract type SimpleModel <: Model; end
-abstract type ThresholdModel <: Model; end
+abstract type Buffer; end
+abstract type BaseLineModel <: Model end
+abstract type ThresholdModel{Buffer} <: Model end
+abstract type FNRModel{Buffer} <: ThresholdModel{Buffer} end
+abstract type FPRModel{Buffer} <: ThresholdModel{Buffer} end
 
 include("utilities.jl")
-include("scoresbuffer.jl")
-include("models.jl")
+include("gradients.jl")
+include("baselinemodels.jl")
+include("fnrmodels.jl")
+include("fprmodels.jl")
 include("lossfunctions.jl")
 
 end # module
