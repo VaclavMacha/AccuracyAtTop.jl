@@ -1,14 +1,14 @@
 # -------------------------------------------------------------------------------
 # BaseLine model
 # -------------------------------------------------------------------------------
-function gradient(model::BaseLineModel, pars, batch_ind::Int, batches)
+function gradient(model::BaseLine, pars, batches, ind)
     @timeit "extract batch" begin 
-        x, y = batches[batch_ind]
+        data, target = batches[ind]
     end
 
     @timeit "gradient" begin
         gs = gradient(pars) do
-            loss(model, x, y) 
+            loss(model, data, target) 
         end
     end
     return gs
@@ -18,44 +18,46 @@ end
 # -------------------------------------------------------------------------------
 # Threshold models
 # -------------------------------------------------------------------------------
-function gradient(model::ThresholdModel, pars, current_batch, batches)
-    @timeit "gradient threshold" begin 
-        x, y, s, t, ∇t_s = gradient_threshold(model, current_batch, batches)
+function extract_batch(model::ThresholdModel, batches, ind)
+    @timeit "extract batch" begin
+        data, target = batches[ind]
     end
 
-    @timeit "gradient loss" begin
-        ∇l_s, ∇l_t = loss_gradient(model, s, t, y)
-    end
-
-    @timeit "copy to gpu" begin
-        # T    = eltype(x)
-        T    = Float32
-        ∇t_s = gpu(∇t_s)
-        ∇l_s = gpu(T.(∇l_s))
-        ∇l_t = T.(∇l_t)
-    end
-
-    @timeit "gradient classifier" begin
-        gs = gradient(pars) do
-            sum(hook(∇ ->(∇l_s .+ ∇l_t .* ∇t_s) .* ∇, scores(model, x)))
-        end
-    end
-    return gs
-end
-
-
-function extract_batch(model::ThresholdModel, current_batch, batches)
-    x, y = batches[current_batch]
-
-    @timeit "compute scores" begin
-        s = scores(model, x)
+    @timeit "scores computation" begin
+        scores = model(data)
     end
 
     @timeit "copy to cpu" begin
-        y = cpu(y)
-        s = cpu(s)
+        target = cpu(target)
+        scores = cpu(scores)
     end
-    return x, y, s
+
+    return data, target, scores
+end
+
+
+function gradient(model::ThresholdModel, pars, batches, ind)
+    @timeit "threshold gradient" begin
+        data, target, scores, t, ∇t_s = threshold_gradient(model, batches, ind)
+        model.threshold = t
+    end
+
+
+    @timeit "loss gradient" begin
+        ∇l_s, ∇l_t = loss_gradient(model, target, scores, t)
+    end
+
+    @timeit "copy to gpu" begin
+        ∇t_s = gpu(∇t_s)
+        ∇l_s = gpu(∇l_s)
+    end
+
+    @timeit "classifier gradient" begin
+        gs = gradient(pars) do
+            sum(hook(∇ ->(∇l_s .+ ∇l_t .* ∇t_s) .* ∇, model(data)))
+        end
+    end
+    return gs
 end
 
 
@@ -64,21 +66,19 @@ end
 # -------------------------------------------------------------------------------
 struct NoBuffer <: Buffer; end
 
-show(io::IO, buffer::NoBuffer) = print(io, "NoBuffer")
+
+show(io::IO, buffer::NoBuffer) =
+    print(io, "NoBuffer")
 
 
-function gradient_threshold(model::ThresholdModel{<:NoBuffer}, current_batch, batches)
-    x, y, s = extract_batch(model, current_batch, batches)
+function threshold_gradient(model::ThresholdModel{B}, batches, ind) where {B <: NoBuffer}
+    data, target, scores = extract_batch(model, batches, ind)
 
-    @timeit "threshold index" begin
-        t, t_ind = threshold_gradient(model, s, y)
-    end
-
-    # compute gradient of threshold with respect to scores
-    ∇t_s        = zero(s)
+    t, t_ind    = find_threshold(model, target, scores)
+    ∇t_s        = zero(scores)
     ∇t_s[t_ind] = 1
 
-    return x, y, s, t, ∇t_s
+    return data, target, scores, t, ∇t_s
 end
 
 
@@ -86,73 +86,60 @@ end
 # Scores Delay
 # -------------------------------------------------------------------------------
 @with_kw_noshow struct ScoresDelay <: Buffer
-    batch_size
-    buffer_size
+    T::Type
+    buffer_size::Int
 
-    T           = Float32
-    ind         = [buffer_size]
-    scores      = fill(typemin(T), buffer_size)
-    labels      = fill(-1, buffer_size)
-    batch_inds  = Vector{Int32}(undef, buffer_size)
-    sample_inds = Vector{Int32}(undef, buffer_size)
+    scores      = CircularBuffer{T}(buffer_size)
+    target      = CircularBuffer{Int}(buffer_size)
+    batch_inds  = CircularBuffer{Int}(buffer_size)
+    sample_inds = CircularBuffer{Int}(buffer_size)
 end
 
 
-function ScoresDelay(batch_size, buffer_size; kwargs...)
-    ScoresDelay(batch_size = batch_size, buffer_size = buffer_size; kwargs...)
+ScoresDelay(T, buffer_size; kwargs...) =
+    ScoresDelay(T = T, buffer_size = buffer_size; kwargs...)
+
+
+show(io::IO, buffer::ScoresDelay) =
+    print(io, "ScoresDelay($(buffer.T), $(buffer.buffer_size))")
+
+
+function update!(buffer::ScoresDelay, target, scores, batch_ind)
+    n = length(scores)
+
+    append!(buffer.scores, vec(scores))
+    append!(buffer.target, vec(target))
+    append!(buffer.batch_inds, fill(batch_ind, n))
+    append!(buffer.sample_inds, 1:n)
 end
 
 
-function show(io::IO, buffer::ScoresDelay)
-    print(io, "ScoresDelay($(buffer.batch_size), $(buffer.buffer_size))")
-end
+function threshold_gradient(model::ThresholdModel{B}, batches, ind) where {B <: ScoresDelay}
+    data, target, scores = extract_batch(model, batches, ind)
 
+    # update buffer
+    buffer = model.buffer
+    update!(buffer, target, scores, ind)
 
-function update!(buff::ScoresDelay, scores, labels, batch_ind)
-    n     = length(scores)
-    n_max = min(buff.buffer_size - buff.ind[1], n)
-    inds  = vcat(buff.ind[1] .+ (1:n_max), 1:(n-n_max))
+    # find threshold
+    t, t_ind   = find_threshold(model, buffer.target, buffer.scores)
+    batch_ind  = buffer.batch_inds[t_ind]
+    sample_ind = buffer.sample_inds[t_ind]
 
-    buff.scores[inds]      = vec(scores)
-    buff.labels[inds]      = vec(labels)
-    buff.batch_inds[inds] .= batch_ind
-    buff.sample_inds[inds] = 1:n
-    buff.ind[1]            = inds[end]
-end
-
-
-function gradient_threshold(model::ThresholdModel{<:ScoresDelay}, current_batch, batches)
-    x, y, s = extract_batch(model, current_batch, batches)
-
-    @timeit "update buffer" begin
-        update!(model.buffer, s, y, current_batch)
-    end
-
-    @timeit "threshold index" begin
-        t, t_ind     = threshold_gradient(model, model.buffer.scores, model.buffer.labels)
-        t_batch_ind  = model.buffer.batch_inds[t_ind]
-        t_sample_ind = model.buffer.sample_inds[t_ind]
-
-        # select the sample that represents the threshold
-        x_t = selectdim(batches[t_batch_ind][1], ndims(x), t_sample_ind)
-        y_t = model.buffer.labels[t_ind]
-        s_t = model.buffer.scores[t_ind]
-    end
-
-    @timeit "batch update" begin
-        if current_batch != t_batch_ind
-            x = cat(x, x_t, dims = ndims(x))
-            y = cat(y, y_t; dims = ndims(y))
-            s = cat(s, s_t; dims = ndims(s))
-            t_sample_ind = length(s)
-        end
+    # update batch
+    if ind != batch_ind
+        sample     = getdim(batches[batch_ind][1], ndims(data), sample_ind)
+        data       = cat(data, sample, dims = ndims(data))
+        target     = hcat(target, buffer.target[t_ind])
+        scores     = hcat(scores, buffer.scores[t_ind])
+        sample_ind = length(scores)
     end
 
     # compute gradient of threshold with respect to scores
-    ∇t_s             = zero(s)
-    ∇t_s[t_sample_ind] = 1
+    ∇t_s             = zero(scores)
+    ∇t_s[sample_ind] = 1
 
-    return x, y, s, t, ∇t_s
+    return data, target, scores, t, ∇t_s
 end
 
 
@@ -164,49 +151,49 @@ mutable struct LastThreshold <: Buffer
     sample_ind::Int
 end
 
-show(io::IO, buffer::LastThreshold) = print(io, "LastThreshold")
+
+show(io::IO, buffer::LastThreshold) =
+    print(io, "LastThreshold")
 
 
-function update!(buff::LastThreshold, batch_ind, sample_ind)
-    buff.batch_ind  = batch_ind
-    buff.sample_ind = sample_ind
+function update!(buffer::LastThreshold, batch_ind, sample_ind)
+    buffer.batch_ind  = batch_ind
+    buffer.sample_ind = sample_ind
 end
 
 
-function extract_buffer(buffer::LastThreshold, batches)
-    x, y = batches[buffer.batch_ind]
-    x_t = selectdim(x, ndims(x), [buffer.sample_ind]) |> copy
-    y_t = selectdim(y, ndims(y), [buffer.sample_ind]) |> cpu
-    return x_t, y_t
+function extract_buffer(model::ThresholdModel{B}, batches) where {B <: LastThreshold}
+    buffer       = model.buffer
+    data, target = batches[buffer.batch_ind]
+
+    data_i   = getdim(data, ndims(data), [buffer.sample_ind]);
+    target_i = getdim(target, ndims(target), [buffer.sample_ind])
+
+    return copy(data_i), cpu(target_i), cpu(model(data_i))
 end
 
 
+function threshold_gradient(model::ThresholdModel{B}, batches, ind) where {B <: LastThreshold}
+    data, target, scores = extract_batch(model, batches, ind)
 
-function gradient_threshold(model::ThresholdModel{<:LastThreshold}, current_batch, batches)
-    x, y, s = extract_batch(model, current_batch, batches)
+    # extract buffer
+    buffer = model.buffer
 
-    @timeit "batch update" begin
-        x_t, y_t = extract_buffer(model.buffer, batches)
-        s_t      = scores(model, copy(x_t)) |> cpu
+    data_t, target_t, scores_t = extract_buffer(model, batches)
 
-        x = cat(x, x_t, dims = ndims(x))
-        y = cat(y, y_t; dims = ndims(y))
-        s = cat(s, s_t; dims = ndims(s))
-    end
-
-    @timeit "threshold index" begin
-        t, t_ind = threshold_gradient(model, s, y)
-    end
-
-    @timeit "update buffer" begin
-        if t_ind .!= length(s)
-            update!(model.buffer, current_batch, t_ind)
-        end
-    end
+    data   = cat(data, data_t, dims = ndims(data))
+    target = hcat(target, target_t)
+    scores = hcat(scores, scores_t)
 
     # compute gradient of threshold with respect to scores
-    ∇t_s        = zero(s)
+    t, t_ind    = find_threshold(model, target, scores)
+    ∇t_s        = zero(scores)
     ∇t_s[t_ind] = 1
 
-    return x, y, s, t, ∇t_s
+    # update buffer
+    if t_ind != length(scores)
+        update!(buffer, ind, t_ind)
+    end
+
+    return data, target, scores, t, ∇t_s
 end

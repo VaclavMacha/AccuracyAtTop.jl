@@ -1,121 +1,39 @@
 # -------------------------------------------------------------------------------
-# Mini batches
+# Cuda
 # -------------------------------------------------------------------------------
-function binarize(y, positives)
-    negatives = setdiff(unique(y), positives)
-    return Bool.(recode(y, positives => 1, negatives => 0))
+function allow_cuda(flag::Bool)
+    AccuracyAtTop.Flux.use_cuda[] = flag
+    status_cuda()
+    return
 end
 
 
-function reshape_data(x, y, positives)
-    d     = ndims(x)
-    y_new = binarize(reshape(y, 1, :), positives)
-
-    if d == 2 || d == 4
-        x_new = x
-    elseif d == 3
-        s     = size(x)
-        x_new = reshape(x, s[1:2]..., 1, s[3])
+function status_cuda()
+    if AccuracyAtTop.Flux.use_cuda[]
+        @info "Cuda is allowed"
     else
-        @error "x: unsupported size"
+        @info "Cuda is not allowed"
     end
-    return x_new, y_new
+    return
 end
 
 
-function get_partition(y::BitArray, batch_size::Int)
-    inds_neg = findall(vec(y) .== 0)
-    inds_pos = findall(vec(y) .== 1)
-
-    n       = length(y)
-    n_neg   = length(inds_neg)
-    n_pos   = length(inds_pos)
-    n_batch = ceil(Int, n/batch_size)
-    
-    ratio_neg = n_neg/n
-    k_neg     = round(Int, n_batch*ratio_neg*batch_size)
-    k_pos     = n_batch*batch_size - k_neg
-
-    neg_pert = shuffle(vcat(1:n_neg, sample(1:n_neg, k_neg - n_neg))) 
-    pos_pert = shuffle(vcat(1:n_pos, sample(1:n_pos, k_pos - n_pos)))
-
-    li_neg, ui_neg = 0, 0
-    li_pos, ui_pos = 0, 0
-    map(1:n_batch) do i
-        li_neg = ui_neg + 1
-        ui_neg = round(Int64, i/n_batch * k_neg)
-
-        li_pos = ui_pos + 1
-        ui_pos = li_pos + batch_size - (ui_neg - li_neg) - 2
-        
-        i_neg = inds_neg[neg_pert[li_neg:ui_neg]]
-        i_pos = inds_pos[pos_pert[li_pos:ui_pos]]
-        return vcat(i_neg, i_pos)
-    end
-end
-
-
-
-function make_minibatch(x, y::BitArray, batch_size::Integer)
-    map(get_partition(y, batch_size)) do inds
-        x_i = selectdim(x, ndims(x), inds)
-        y_i = selectdim(y, ndims(y), inds)
-        return (Array(x_i), Array(y_i))
-    end
-end
-
-
-# -------------------------------------------------------------------------------
-# Gradient test
-# -------------------------------------------------------------------------------
-function test_gradient(model_in::Model, batch; verbose::Bool = false)
-    # random direction
-    pars_in = params(model_in)
-    dirs    = rand_direction(pars_in)
-
-    # compute loss function and gradient
-    gs = gradient(model_in, pars_in, 1, [batch])
-    ∇  = map(zip(pars_in, dirs)) do (par, dir)
-        sum(gs[par] .* dir)
-    end |> sum
-
-    # compute numerical gradient
-    err = map(10.0 .^ (-12:0.2:-1)) do s
-        # numerical gradient
-        f1   = loss(new_model(model_in, dirs, s), batch...)
-        f2   = loss(new_model(model_in, dirs, - s), batch...)
-        ∇num = (f1 - f2)/(2*s)
-
-        # show
-        verbose && @show (∇, ∇num) 
-
-        return norm(∇ - ∇num)/max(norm(∇), norm(∇num))
-    end |> minimum
-
-    @info "minimal error: $err"
-    return 
-end
-
-
-function rand_direction(pars::Params)
-    dirs = deepcopy(pars)
-    for (dir, par) in zip(dirs, pars)
-        dir .= gpu(rand(eltype(par), size(par)...))
-    end
-    return dirs
-end
-
-
-function new_model(model_in::Model, dirs, s)
-    #copy model
+function cpu(model_in::Model)
     model = deepcopy(model_in)
-
-    # update parameters of the copy
-    for (par, dir) in zip(params(model), dirs)
-        par .+= s .* dir
-    end
+    model.classifier = cpu(model.classifier)
     return model
 end
+
+
+function gpu(model_in::Model)
+    model = deepcopy(model_in)
+    model.classifier = gpu(model.classifier)
+    return model
+end
+
+
+params(model::Model) =
+    params(model.classifier)
 
 
 # -------------------------------------------------------------------------------
@@ -128,7 +46,7 @@ function train!(model::Model, batches, optimiser; cb = () -> ())
 
     for ind in indexes
         try
-            gs = gradient(model, pars, ind, batches)
+            gs = gradient(model, pars, batches, ind)
             @timeit "update parameters" update!(optimiser, pars, gs)
             cb()
         catch ex
@@ -162,50 +80,84 @@ end
 
 
 # -------------------------------------------------------------------------------
-# auxiliary functions
-# -------------------------------------------------------------------------------
-function cpu(model_in::Model)
-    model = deepcopy(model_in)
-    model.classifier = cpu(model.classifier)
-    return model
-end
-
-
-function gpu(model_in::Model)
-    model = deepcopy(model_in)
-    model.classifier = gpu(model.classifier)
-    return model
-end
-
-
-function params(model::Model)
-    return params(model.classifier)
-end
-
-
-# -------------------------------------------------------------------------------
 # auxiliary threshold functions
 # -------------------------------------------------------------------------------
-function findkth(x, k::Int; rev::Bool = false)
-    n = length(x)
+getdim(A::AbstractArray, d::Integer, i) =
+    getindex(A, Base._setindex(i, d, axes(A)...)...)
+
+
+clip(x, xmin, xmax) =
+    min(max(xmin, x), xmax)
+
+
+isneg(target) = target == 0
+ispos(target) = target == 1
+
+
+find_negatives(target) = findall(isneg.(vec(target)))
+find_positives(target) = findall(ispos.(vec(target)))
+
+
+function scores_max(scores, inds = LinearIndices(scores))
+    val, ind = findmax(view(scores, inds))
+
+    return val, inds[ind]
+end
+
+function scores_kth(scores::AbstractArray{T, 2}, k::Int, inds = LinearIndices(scores); kwargs...) where T
+    size(scores, 1) == 1 || throw(ArgumentError("scores must be row or column vector"))
+    return scores_kth(vec(scores), k, vec(inds); kwargs...)
+end
+
+
+function scores_kth(scores::AbstractVector, k::Int, inds = LinearIndices(scores); rev::Bool = false)
+    vals = view(scores, inds)
+    n    = length(vals)
     1 <= k <= n || throw(ArgumentError("input index out of {1,$n} set"))
 
-    ind = partialsortperm(x, k, rev = rev)
-    return x[ind], ind
+    ind = partialsortperm(vals, k, rev = rev)
+
+    return vals[ind], inds[ind]
 end
 
 
-function findquantile(x, p)
+function scores_quantile(scores, p::Real, inds = LinearIndices(scores))
     0 <= p <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
 
+    n = min(length(scores), length(inds))
     if p <= 0.5
-        k = floor(Int64, length(x)*p)
-        return findkth(x, k; rev = false)
+        k = clip(floor(Int64, n*p), 1, n)
+        return scores_kth(scores, k, inds; rev = false)
     else
-        k = floor(Int64, length(x)*(1 - p)) + 1
-        return findkth(x, k; rev = true)
+        k = clip(floor(Int64, n*(1-p)) + 1, 1, n)
+        return scores_kth(scores, k, inds; rev = true)
     end
 end
+
+
+# -------------------------------------------------------------------------------
+# Surrogate functions
+# -------------------------------------------------------------------------------
+@with_kw_noshow struct Hinge <: Surrogate
+    ϑ        = 1
+    value    = (x) -> max(zero(x), 1 + ϑ*x)
+    gradient = (x) -> 1 + ϑ*x >= 0 ? ϑ*one(x) : zero(x)
+end
+
+
+show(io::IO, surrogate::Hinge) =
+    print(io, "Hinge($(surrogate.ϑ))")
+
+
+@with_kw_noshow struct Quadratic <: Surrogate
+    ϑ        = 1
+    value    = (x) -> max(zero(x), 1 + ϑ*x)^2
+    gradient = (x) -> (val = 1 + ϑ*x; val >= 0 ? 2*ϑ*val : zero(x))
+end
+
+
+show(io::IO, surrogate::Quadratic) =
+    print(io, "Quadratic($(surrogate.ϑ))")
 
 
 # -------------------------------------------------------------------------------

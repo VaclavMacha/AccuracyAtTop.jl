@@ -1,65 +1,31 @@
 module AccuracyAtTop
 
-using Reexport
-using LinearAlgebra, Statistics, Parameters, BSON, ProgressMeter, TimerOutputs
+using Reexport, LinearAlgebra, Statistics, TimerOutputs
 
 @reexport using Flux
 
-import CuArrays 
-import Flux: cpu, gpu, Params, params, gradient, sigmoid, binarycrossentropy
+import Flux: cpu, gpu, params, gradient, sigmoid, binarycrossentropy
 import Flux.Optimise: train!, update!, runall, StopException
-import Zygote: hook, Grads
-import Random: randperm, shuffle
-import CategoricalArrays: recode
-import MLBase: sample
+import Flux.Zygote: hook, Grads
+
+import Random: randperm
+import DataStructures: CircularBuffer
+import Parameters: @with_kw_noshow
+import ProgressMeter: @showprogress
+import BSON
 import Base: show
 
-export loss, scores, threshold, train!, @runepochs, @tracktime,
-       make_minibatch, reshape_data,
-       Hinge, Quadratic, BinCrossEntropy, FNR,
-       allow_cuda, status_cuda,
-       Buffer, NoBuffer, ScoresDelay, LastThreshold,
-       Model,
-       BaseLineModel, BaseLine,
-       ThresholdModel, TopPush, TopPushK, PatMat, PatMatNP, PrecAtRec,
-       test_gradient
 
+# Models
+include("models.jl")
+export BaseLine, TopPush, TopPushK, PatMat, PatMatNP, PrecAtRec, threshold
 
-########
-# Cuda #
-########
-function allow_cuda(flag::Bool)
-    AccuracyAtTop.Flux.use_cuda[] = flag
-    status_cuda()
-    return
-end
-
-
-function status_cuda()
-    if AccuracyAtTop.Flux.use_cuda[]
-        @info "Cuda is allowed"
-    else
-        @info "Cuda is not allowed"
-    end
-    return
-end
-
-
-##################
-# Abstract types #
-##################
-abstract type Model; end
-abstract type Buffer; end
-abstract type BaseLineModel <: Model end
-abstract type ThresholdModel{Buffer} <: Model end
-abstract type FNRModel{Buffer} <: ThresholdModel{Buffer} end
-abstract type FPRModel{Buffer} <: ThresholdModel{Buffer} end
-
+# Utilities
 include("utilities.jl")
+export @runepochs, @tracktime, train!, Hinge, Quadratic, allow_cuda, status_cuda
+
+# Gradients
 include("gradients.jl")
-include("baselinemodels.jl")
-include("fnrmodels.jl")
-include("fprmodels.jl")
-include("lossfunctions.jl")
+export NoBuffer, ScoresDelay, LastThreshold
 
 end # module
