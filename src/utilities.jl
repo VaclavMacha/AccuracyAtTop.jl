@@ -32,8 +32,12 @@ function gpu(model_in::Model)
 end
 
 
-params(model::Model) =
-    params(model.classifier)
+# -------------------------------------------------------------------------------
+# auxiliary model functions
+# -------------------------------------------------------------------------------
+params(model::Model)    = params(model.classifier)
+save_model(name, model) = BSON.bson(name, model = cpu(model))
+load_model(name)        = BSON.load(name)[:model]
 
 
 # -------------------------------------------------------------------------------
@@ -125,12 +129,12 @@ function scores_quantile(scores, p::Real, inds = LinearIndices(scores))
     0 <= p <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
 
     n = min(length(scores), length(inds))
-    if p <= 0.5
-        k = clip(floor(Int64, n*p), 1, n)
+    k = clip(floor(Int64, n*p), 1, n)
+
+    if k <= n/2
         return scores_kth(scores, k, inds; rev = false)
     else
-        k = clip(floor(Int64, n*(1-p)) + 1, 1, n)
-        return scores_kth(scores, k, inds; rev = true)
+        return scores_kth(scores, n - k + 1, inds; rev = true)
     end
 end
 
@@ -144,6 +148,8 @@ end
     gradient = (x) -> 1 + ϑ*x >= 0 ? ϑ*one(x) : zero(x)
 end
 
+Hinge(ϑ::Real) = Hinge(ϑ = ϑ)
+
 
 show(io::IO, surrogate::Hinge) =
     print(io, "Hinge($(surrogate.ϑ))")
@@ -155,13 +161,8 @@ show(io::IO, surrogate::Hinge) =
     gradient = (x) -> (val = 1 + ϑ*x; val >= 0 ? 2*ϑ*val : zero(x))
 end
 
+Quadratic(ϑ::Real) = Quadratic(ϑ = ϑ)
+
 
 show(io::IO, surrogate::Quadratic) =
     print(io, "Quadratic($(surrogate.ϑ))")
-
-
-# -------------------------------------------------------------------------------
-# save and load model
-# -------------------------------------------------------------------------------
-save_model(name, model) = BSON.bson(name, model = cpu(model))
-load_model(name)        = BSON.load(name)[:model]

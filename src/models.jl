@@ -53,7 +53,7 @@ loss(model::FNRModel, target, scores, t) =
 
 
 function loss_gradient(model::FNRModel, target, scores, t)
-    ∇L_s   = @. - model.surrogate.gradient(t - scores) * ispos(target)
+    ∇L_s   = @. - model.surrogate.gradient(t - scores) * ispos.(target)
     n_pos = sum(target) 
     return ∇L_s./n_pos, -sum(∇L_s)/n_pos
 end
@@ -166,8 +166,8 @@ loss(model::FPRModel, target, scores, t) =
 
 
 function loss_gradient(model::FPRModel, target, scores, t)
-    ∇L_s   = @. model.surrogate.gradient(scores - t) * isneg(target)
-    n_neg = sum(target) 
+    ∇L_s  = @. model.surrogate.gradient(scores - t) * isneg.(target)
+    n_neg = length(target) - sum(target) 
     return ∇L_s./n_neg, -sum(∇L_s)/n_neg
 end
 
