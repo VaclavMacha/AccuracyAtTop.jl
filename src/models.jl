@@ -154,6 +154,29 @@ find_threshold(model::PatMatNP, target, scores) =
     scores_quantile(scores, 1 - model.τ, find_negatives(target))
 
 
+# RecAtK
+@with_kw_noshow mutable struct RecAtK{B<:Buffer} <: FNRModel{B}
+    K::Int
+    classifier
+    surrogate::Surrogate = Hinge()
+    buffer::B            = NoBuffer()
+
+    T::Type   = Float32
+    threshold = zero(T)
+end
+
+
+RecAtK(K, classifier; kwargs...) =
+    RecAtK(K = K, classifier = deepcopy(classifier); kwargs...)
+
+
+show(io::IO, model::RecAtK) =
+    print(io, "RecAtK($(model.K), $(model.surrogate), $(model.buffer))")
+
+
+find_threshold(model::RecAtK, target, scores) =
+    scores_kth(scores, model.K; rev = true)
+
 
 ##############
 # FPR models #

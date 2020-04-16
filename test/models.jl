@@ -150,6 +150,32 @@ end
 end
 
 
+# RecAtK
+@testset "RecAtK model: K = $K" for K in [2, 4, 5]
+    model     = RecAtK(K, classifier)
+    surrogate = model.surrogate
+
+    @test typeof(surrogate) <: Hinge
+    @test typeof(model) <: RecAtK
+    @test RecAtK <: FNRModel
+    @test fieldnames(RecAtK) == (:K, :classifier, :surrogate, :buffer, :T, :threshold)
+
+    ind_pos = findall(vec(target) .== 1)
+    t_ind   = partialsortperm(vec(scores), K; rev = true)
+    t       = scores[t_ind]
+
+    @test model(data) == scores
+    @test threshold(model, target, scores) == t
+    @test find_threshold(model, target, scores) == (t, t_ind)
+    @test loss(model, data, target) == mean(surrogate.value.(t .- scores[ind_pos]))
+
+    tmp  = @. - surrogate.gradient(t - scores) * (target .== 1)
+    ∇L_s = tmp./length(ind_pos)
+    ∇L_t = - sum(tmp)./length(ind_pos)
+    @test loss_gradient(model, target, scores, threshold(model, target, scores)) == (∇L_s, ∇L_t)
+end
+
+
 ##############
 # FPR models #
 ##############
