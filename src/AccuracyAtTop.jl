@@ -18,7 +18,8 @@ import Base: show
 
 # Models
 include("models.jl")
-export BaseLine, TopPush, TopPushK, PatMat, PatMatNP, RecAtK, PrecAtRec, threshold
+export BaseLine, BalancedBaseLine,
+       TopPush, TopPushK, PatMat, PatMatNP, RecAtK, PrecAtRec, threshold
 
 # Utilities
 include("utilities.jl")

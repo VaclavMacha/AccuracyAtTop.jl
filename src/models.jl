@@ -8,21 +8,52 @@ abstract type Surrogate; end
 # -------------------------------------------------------------------------------
 # BaseLine model
 # -------------------------------------------------------------------------------
-@with_kw_noshow mutable struct BaseLine <: Model
+abstract type BaseLineModel <: Model end
+
+@with_kw_noshow mutable struct BaseLine <: BaseLineModel
     classifier
+    objective::Function = binarycrossentropy
     T::Type = Float32
 end
+
 
 BaseLine(classifier; kwargs...) =
     BaseLine(classifier = deepcopy(classifier); kwargs...)
 
 
 show(io::IO, model::BaseLine) =
-    print(io, "BaseLine")
+    print(io, "BaseLine($(model.objective))")
 
 
 loss(model::BaseLine, data, target) =
-    mean(binarycrossentropy.(sigmoid.(model(data)), target))
+    mean(model.objective.(sigmoid.(model(data)), target))
+
+
+@with_kw_noshow mutable struct BalancedBaseLine <: BaseLineModel
+    classifier
+    objective::Function = binarycrossentropy
+    T::Type = Float32
+end
+
+
+BalancedBaseLine(classifier; kwargs...) =
+    BalancedBaseLine(classifier = deepcopy(classifier); kwargs...)
+
+
+show(io::IO, model::BalancedBaseLine) =
+    print(io, "BalancedBaseLine($(model.objective))")
+
+
+function loss(model::BalancedBaseLine, data, target, w = weights(target))
+    sum(model.objective.(sigmoid.(model(data)), target) .* w)
+end
+
+
+function weights(target)
+    y = cpu(target)
+    w = y ./ sum(y .== 1) .+ (1 .- y) ./ sum(y .== 0) 
+    return gpu(w)
+end
 
 
 # -------------------------------------------------------------------------------

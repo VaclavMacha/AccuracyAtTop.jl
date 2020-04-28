@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 # BaseLine model
 # -------------------------------------------------------------------------------
-function gradient(model::BaseLine, pars, batches, ind)
+function gradient(model::BaseLineModel, pars, batches, ind)
     @timeit "extract batch" begin 
         data, target = batches[ind]
     end
@@ -9,6 +9,21 @@ function gradient(model::BaseLine, pars, batches, ind)
     @timeit "gradient" begin
         gs = gradient(pars) do
             loss(model, data, target) 
+        end
+    end
+    return gs
+end
+
+
+function gradient(model::BalancedBaseLine, pars, batches, ind)
+    @timeit "extract batch" begin 
+        data, target = batches[ind]
+    end
+
+    @timeit "gradient" begin
+        w = weights(target)
+        gs = gradient(pars) do
+            loss(model, data, target, w) 
         end
     end
     return gs

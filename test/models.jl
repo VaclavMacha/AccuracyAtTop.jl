@@ -19,7 +19,17 @@ scores     = classifier(data)
 
     @test typeof(model) <: BaseLine
     @test BaseLine <: Model
-    @test fieldnames(BaseLine) == (:classifier, :T)
+    @test fieldnames(BaseLine) == (:classifier, :objective, :T)
+    @test model(data) == classifier(data)
+end
+
+
+@testset "BalancedBaseLine model" begin
+    model = BalancedBaseLine(classifier)
+
+    @test typeof(model) <: BalancedBaseLine
+    @test BalancedBaseLine <: Model
+    @test fieldnames(BalancedBaseLine) == (:classifier, :objective, :T)
     @test model(data) == classifier(data)
 end
 
