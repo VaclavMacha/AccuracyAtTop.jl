@@ -22,7 +22,7 @@ export BaseLine, TopPush, TopPushK, PatMat, PatMatNP, RecAtK, PrecAtRec, thresho
 
 # Utilities
 include("utilities.jl")
-export @runepochs, @tracktime, train!, Hinge, Quadratic, allow_cuda, status_cuda
+export @runepochs, @tracktime, train!, Hinge, Quadratic, Sigmoid, allow_cuda, status_cuda
 
 # Gradients
 include("gradients.jl")

@@ -166,3 +166,13 @@ Quadratic(ϑ::Real) = Quadratic(ϑ = ϑ)
 
 show(io::IO, surrogate::Quadratic) =
     print(io, "Quadratic($(surrogate.ϑ))")
+
+
+@with_kw_noshow struct Sigmoid <: Surrogate
+    value    = (x) -> 1/(1 + exp(-x))
+    gradient = (x) -> (val = 1/(1 + exp(-x)); val*(1 - val))
+end
+
+show(io::IO, surrogate::Sigmoid) =
+    print(io, "Sigmoid")
+
