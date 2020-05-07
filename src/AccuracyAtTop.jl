@@ -6,7 +6,7 @@ using Reexport, LinearAlgebra, Statistics, TimerOutputs
 
 import Flux: cpu, gpu, params, gradient, sigmoid, binarycrossentropy
 import Flux.Optimise: train!, update!, runall, StopException
-import Flux.Zygote: hook, Grads
+import Zygote: hook, Grads
 
 import Random: randperm
 import DataStructures: CircularBuffer

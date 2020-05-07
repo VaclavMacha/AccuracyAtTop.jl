@@ -2,7 +2,7 @@
 # Cuda
 # -------------------------------------------------------------------------------
 function allow_cuda(flag::Bool)
-    AccuracyAtTop.Flux.use_cuda[] = flag
+    Flux.use_cuda[] = flag
     status_cuda()
     return
 end

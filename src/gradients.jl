@@ -181,7 +181,7 @@ function extract_buffer(model::ThresholdModel{B}, batches) where {B <: LastThres
     buffer       = model.buffer
     data, target = batches[buffer.batch_ind]
 
-    data_i   = getdim(data, ndims(data), [buffer.sample_ind]);
+    data_i   = getdim(data, ndims(data), [buffer.sample_ind])
     target_i = getdim(target, ndims(target), [buffer.sample_ind])
 
     return copy(data_i), cpu(target_i), cpu(model(data_i))
