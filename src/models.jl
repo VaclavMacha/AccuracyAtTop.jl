@@ -14,11 +14,13 @@ abstract type BaseLineModel <: Model end
     classifier
     objective::Function = binarycrossentropy
     T::Type = Float32
+
+    BaseLine(cls, obj, T) = new(deepcopy(cls), obj, T)
 end
 
 
 BaseLine(classifier; kwargs...) =
-    BaseLine(classifier = deepcopy(classifier); kwargs...)
+    BaseLine(classifier = classifier; kwargs...)
 
 
 show(io::IO, model::BaseLine) =
@@ -33,11 +35,13 @@ loss(model::BaseLine, data, target) =
     classifier
     objective::Function = binarycrossentropy
     T::Type = Float32
+
+    BalancedBaseLine(cls, obj, T) = new(deepcopy(cls), obj, T)
 end
 
 
 BalancedBaseLine(classifier; kwargs...) =
-    BalancedBaseLine(classifier = deepcopy(classifier); kwargs...)
+    BalancedBaseLine(classifier = classifier; kwargs...)
 
 
 show(io::IO, model::BalancedBaseLine) =
@@ -94,15 +98,17 @@ end
 @with_kw_noshow mutable struct TopPush{B<:Buffer} <: FNRModel{B}
     classifier
     surrogate::Surrogate = Hinge()
-    buffer::B            = NoBuffer()
+    buffer::B = NoBuffer()
 
     T::Type   = Float32
     threshold = zero(T)
+
+    TopPush{B}(cls, surr, buff::B, T, t) where {B} =
+        new(deepcopy(cls), surr, buff, T, t)
 end
 
-
 TopPush(classifier; kwargs...) =
-    TopPush(classifier = deepcopy(classifier); kwargs...)
+    TopPush(classifier = classifier; kwargs...)
 
 
 show(io::IO, model::TopPush) =
@@ -122,11 +128,14 @@ find_threshold(model::TopPush, target, scores) =
 
     T::Type   = Float32
     threshold = zero(T)
+
+    TopPushK{B}(K, cls, surr, buff::B, T, t) where {B} =
+        new(K, deepcopy(cls), surr, buff, T, t)
 end
 
 
 TopPushK(K, classifier; kwargs...) =
-    TopPushK(K = K, classifier = deepcopy(classifier); kwargs...)
+    TopPushK(K = K, classifier = classifier; kwargs...)
 
 
 show(io::IO, model::TopPushK) =
@@ -146,11 +155,14 @@ find_threshold(model::TopPushK, target, scores) =
 
     T::Type   = Float32
     threshold = zero(T)
+
+    PatMat{B}(τ, cls, surr, buff::B, T, t) where {B} =
+        new(τ, deepcopy(cls), surr, buff, T, t)
 end
 
 
 PatMat(τ, classifier; kwargs...) =
-    PatMat(τ = τ, classifier = deepcopy(classifier); kwargs...)
+    PatMat(τ = τ, classifier = classifier; kwargs...)
 
 
 show(io::IO, model::PatMat) = 
@@ -170,11 +182,14 @@ find_threshold(model::PatMat, target, scores) =
 
     T::Type   = Float32
     threshold = zero(T)
+
+    PatMatNP{B}(τ, cls, surr, buff::B, T, t) where {B} =
+        new(τ, deepcopy(cls), surr, buff, T, t)
 end
 
 
 PatMatNP(τ, classifier; kwargs...) =
-    PatMatNP(τ = τ, classifier = deepcopy(classifier); kwargs...)
+    PatMatNP(τ = τ, classifier = classifier; kwargs...)
 
 
 show(io::IO, model::PatMatNP) =
@@ -194,11 +209,14 @@ find_threshold(model::PatMatNP, target, scores) =
 
     T::Type   = Float32
     threshold = zero(T)
+
+    RecAtK{B}(K, cls, surr, buff::B, T, t) where {B} =
+        new(K, deepcopy(cls), surr, buff, T, t)
 end
 
 
 RecAtK(K, classifier; kwargs...) =
-    RecAtK(K = K, classifier = deepcopy(classifier); kwargs...)
+    RecAtK(K = K, classifier = classifier; kwargs...)
 
 
 show(io::IO, model::RecAtK) =
@@ -235,11 +253,14 @@ end
 
     T::Type   = Float32
     threshold = zero(T)
+
+    PrecAtRec{B}(rec, cls, surr, buff::B, T, t) where {B} =
+        new(rec, deepcopy(cls), surr, buff, T, t)
 end
 
 
 PrecAtRec(rec, classifier; kwargs...) =
-    PrecAtRec(rec = rec, classifier = deepcopy(classifier); kwargs...)
+    PrecAtRec(rec = rec, classifier = classifier; kwargs...)
 
 
 show(io::IO, model::PrecAtRec) =

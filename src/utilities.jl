@@ -86,17 +86,12 @@ end
 # -------------------------------------------------------------------------------
 # auxiliary threshold functions
 # -------------------------------------------------------------------------------
-getdim(A::AbstractArray, d::Integer, i) =
-    getindex(A, Base._setindex(i, d, axes(A)...)...)
+getdim(A::AbstractArray, d::Integer, i) = getindex(A, Base._setindex(i, d, axes(A)...)...)
 
-
-clip(x, xmin, xmax) =
-    min(max(xmin, x), xmax)
-
+clip(x, xmin, xmax) = min(max(xmin, x), xmax)
 
 isneg(target) = target == 0
 ispos(target) = target == 1
-
 
 find_negatives(target) = findall(isneg.(vec(target)))
 find_positives(target) = findall(ispos.(vec(target)))
@@ -107,6 +102,7 @@ function scores_max(scores, inds = LinearIndices(scores))
 
     return val, inds[ind]
 end
+
 
 function scores_kth(scores::AbstractArray{T, 2}, k::Int, inds = LinearIndices(scores); kwargs...) where T
     size(scores, 1) == 1 || throw(ArgumentError("scores must be row or column vector"))
