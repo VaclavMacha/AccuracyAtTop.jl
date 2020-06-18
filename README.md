@@ -32,7 +32,7 @@ To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/
     2. `Quadratic(theta)`
     3. `Sigmoid(theta)`
 
-The following example shows the basic use of the package. The complete set of all experiments included in the article is in a separate repository [AccuracyAtTop_experiments.jl](https://github.com/VaclavMacha/AccuracyAtTop_experiments.jl)
+The following example shows the basic use of the package. The complete set of all experiments included in the article is in a separate repository [AccuracyAtTop_experiments.jl](https://github.com/VaclavMacha/AccuracyAtTop_experiments.jl/tree/NeurIPS_v1)
 
 ```julia
 using AccuracyAtTop, MLDatasets, MLDataPattern
