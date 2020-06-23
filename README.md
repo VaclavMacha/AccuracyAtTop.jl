@@ -1,7 +1,7 @@
 
 # AccuracyAtTop.jl
 
-This repository is a complementary material to our paper *End-to-end network for Accuracy at the top*. This paper was submitted to the [NeurIPS | 2020 Thirty-fourth Conference on Neural Information Processing Systems](https://nips.cc/Conferences/2020).
+This repository is a complementary material to our paper *[DeepTopPush: Simple and Scalable Method for Accuracy at the Top](https://arxiv.org/abs/2006.12293)*. This paper was submitted to the [NeurIPS | 2020 Thirty-fourth Conference on Neural Information Processing Systems](https://nips.cc/Conferences/2020).
 
  ## Instalation
 
