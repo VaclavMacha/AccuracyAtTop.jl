@@ -1,91 +1,3 @@
-# -------------------------------------------------------------------------------
-# Cuda
-# -------------------------------------------------------------------------------
-function allow_cuda(flag::Bool)
-    Flux.use_cuda[] = flag
-    status_cuda()
-    return
-end
-
-
-function status_cuda()
-    if AccuracyAtTop.Flux.use_cuda[]
-        @info "Cuda is allowed"
-    else
-        @info "Cuda is not allowed"
-    end
-    return
-end
-
-
-function cpu(model_in::Model)
-    model = deepcopy(model_in)
-    model.classifier = cpu(model.classifier)
-    return model
-end
-
-
-function gpu(model_in::Model)
-    model = deepcopy(model_in)
-    model.classifier = gpu(model.classifier)
-    return model
-end
-
-
-# -------------------------------------------------------------------------------
-# auxiliary model functions
-# -------------------------------------------------------------------------------
-params(model::Model)    = params(model.classifier)
-save_model(name, model) = BSON.bson(name, model = cpu(model))
-load_model(name)        = BSON.load(name)[:model]
-
-
-# -------------------------------------------------------------------------------
-# train model
-# -------------------------------------------------------------------------------
-function train!(model::Model, batches, optimiser; cb = () -> ())
-    pars    = params(model)
-    cb      = runall(cb)
-    indexes = randperm(length(batches))
-
-    for ind in indexes
-        try
-            gs = gradient(model, pars, batches, ind)
-            @timeit "update parameters" update!(optimiser, pars, gs)
-            cb()
-        catch ex
-            if ex isa StopException
-                break
-            else
-                rethrow(ex)
-            end
-        end
-    end
-end
-
-
-macro runepochs(n, ex)
-    quote 
-        @showprogress for i = 1:$(esc(n))
-            @timeit "epoch" $(esc(ex))
-        end
-    end
-end
-
-
-macro tracktime(expr)
-    quote
-        reset_timer!()
-        $(esc(expr))
-        print_timer()
-        println()
-    end
-end
-
-
-# -------------------------------------------------------------------------------
-# auxiliary threshold functions
-# -------------------------------------------------------------------------------
 getdim(A::AbstractArray, d::Integer, i) = getindex(A, Base._setindex(i, d, axes(A)...)...)
 
 clip(x, xmin, xmax) = min(max(xmin, x), xmax)
@@ -95,6 +7,14 @@ ispos(target) = target == 1
 
 find_negatives(target) = findall(isneg.(vec(target)))
 find_positives(target) = findall(ispos.(vec(target)))
+
+function weights(target)
+    n_pos = sum(ispos.(target))
+    n_neg = length(target) - n_pos
+    return target ./ n_pos .+ (1 .- target) ./ n_neg
+end
+
+@nograd find_negatives, find_positives, weights
 
 
 function scores_max(scores, inds = LinearIndices(scores))
@@ -138,37 +58,5 @@ end
 # -------------------------------------------------------------------------------
 # Surrogate functions
 # -------------------------------------------------------------------------------
-@with_kw_noshow struct Hinge <: Surrogate
-    ϑ        = 1
-    value    = (x) -> max(zero(x), 1 + ϑ*x)
-    gradient = (x) -> 1 + ϑ*x >= 0 ? ϑ*one(x) : zero(x)
-end
-
-Hinge(ϑ::Real) = Hinge(ϑ = ϑ)
-
-
-show(io::IO, surrogate::Hinge) =
-    print(io, "Hinge($(surrogate.ϑ))")
-
-
-@with_kw_noshow struct Quadratic <: Surrogate
-    ϑ        = 1
-    value    = (x) -> max(zero(x), 1 + ϑ*x)^2
-    gradient = (x) -> (val = 1 + ϑ*x; val >= 0 ? 2*ϑ*val : zero(x))
-end
-
-Quadratic(ϑ::Real) = Quadratic(ϑ = ϑ)
-
-
-show(io::IO, surrogate::Quadratic) =
-    print(io, "Quadratic($(surrogate.ϑ))")
-
-
-@with_kw_noshow struct Sigmoid <: Surrogate
-    value    = (x) -> 1/(1 + exp(-x))
-    gradient = (x) -> (val = 1/(1 + exp(-x)); val*(1 - val))
-end
-
-show(io::IO, surrogate::Sigmoid) =
-    print(io, "Sigmoid")
-
+hinge(x) = max(zero(x), 1 + x)
+quadratic(x) = max(zero(x), 1 + x)^2
