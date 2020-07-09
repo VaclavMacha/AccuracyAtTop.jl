@@ -1,23 +1,8 @@
 import AccuracyAtTop: clip, ispos, isneg, find_negatives, find_positives
 import AccuracyAtTop: scores_max, scores_kth, scores_quantile
-import AccuracyAtTop: Surrogate
-
-# -------------------------------------------------------------------------------
-# Cuda
-# -------------------------------------------------------------------------------
-@testset "Cuda" begin
-    tmp = AccuracyAtTop.Flux.use_cuda[]
-    allow_cuda(true)
-    @test AccuracyAtTop.Flux.use_cuda[] == true
-    allow_cuda(false)
-    @test AccuracyAtTop.Flux.use_cuda[] == false
-    allow_cuda(tmp)
-end
+import AccuracyAtTop: hinge, quadratic
 
 
-# -------------------------------------------------------------------------------
-# auxiliary threshold functions
-# -------------------------------------------------------------------------------
 scores = reshape(collect(1:10), 1, :)
 target = scores .>= 6
 
@@ -54,21 +39,7 @@ end
 # -------------------------------------------------------------------------------
 ϑ = rand()
 
-@testset "auxiliary threshold functions" begin
-    l1 = Hinge(ϑ)
-    @testset "hinge loss" begin
-        @test typeof(l1) <: Surrogate
-        @test l1.ϑ == ϑ
-        @test l1.value.([-1/ϑ - 1, 0, -1/ϑ + 1])    ≈ [0, 1, ϑ]
-        @test l1.gradient.([-1/ϑ - 1, 0, -1/ϑ + 1]) ≈ [0, ϑ, ϑ]
-    end
-
-
-    l2 = Quadratic(ϑ)
-    @testset "quadratic loss" begin
-        @test typeof(l2) <: Surrogate
-        @test l2.ϑ == ϑ
-        @test l2.value.([-1/ϑ - 1, 0, -1/ϑ + 1])    ≈ [0, 1, ϑ^2]
-        @test l2.gradient.([-1/ϑ - 1, 0, -1/ϑ + 1]) ≈ [0, 2*ϑ, 2*ϑ^2]
-    end
+@testset "surrrogate functions" begin
+    @test hinge.([-1/ϑ - 1, 0, -1/ϑ + 1], ϑ)    ≈ [0, 1, ϑ]
+    @test quadratic.([-1/ϑ - 1, 0, -1/ϑ + 1], ϑ)    ≈ [0, 1, ϑ^2]
 end
