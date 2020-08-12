@@ -9,6 +9,8 @@ threshold(tp::AbstractThreshold, target, scores) =
     Δt_s = zero(scores)
     Δt_s[t_ind] = 1
 
+    set_lastthreshold!(t, t_ind)
+
     return t, Δ -> (nothing, nothing, Δ .* Δt_s)
 end
 

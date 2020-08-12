@@ -55,8 +55,6 @@ function scores_quantile(scores, p::Real, inds = LinearIndices(scores))
 end
 
 
-# -------------------------------------------------------------------------------
 # Surrogate functions
-# -------------------------------------------------------------------------------
 hinge(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)
 quadratic(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)^2
