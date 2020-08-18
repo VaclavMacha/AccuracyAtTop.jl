@@ -2,10 +2,14 @@ module AccuracyAtTop
 
 using LinearAlgebra, Statistics, Flux
 
+using Flux.Optimise: Params, StopException
+using Flux.Optimise: @progress
+using Flux.Optimise: batchmemaybe, gradient, update!, runall
 using Zygote: @adjoint, @nograd
-using Flux.Optimise: Params, runall, @progress, gradient, update!, StopException, batchmemaybe
 
-export fnr, fpr, Maximum, Quantile, Kth, AllSamples, NegSamples, PosSamples, hinge, quadratic, threshold, Buffer, train_with_buffer!
+export AllSamples, NegSamples, PosSamples, Buffer
+export Maximum, Quantile, Kth, TPRate, TNRate, FPRate, FNRate
+export fnr, fpr, hinge, quadratic, threshold, train_with_buffer!
 
 # custom types
 abstract type AbstractThreshold end
