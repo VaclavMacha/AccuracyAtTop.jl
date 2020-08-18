@@ -4,7 +4,7 @@ using LinearAlgebra, Statistics, Flux
 
 using Flux.Optimise: Params, StopException
 using Flux.Optimise: @progress
-using Flux.Optimise: batchmemaybe, gradient, update!, runall
+using Flux.Optimise: gradient, update!, runall
 using Zygote: @adjoint, @nograd
 
 export AllSamples, NegSamples, PosSamples, Buffer
@@ -76,7 +76,7 @@ function train_with_buffer!(
         d = loader(inds2)
         try
             gs = gradient(ps) do
-                loss(batchmemaybe(d)...)
+                loss(d...)
             end
             update!(opt, ps, gs)
             update_buffer!(inds2)
