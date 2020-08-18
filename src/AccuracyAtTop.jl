@@ -3,7 +3,6 @@ module AccuracyAtTop
 using LinearAlgebra, Statistics, Flux
 
 using Zygote: @adjoint, @nograd
-using Flux: sigmoid, binarycrossentropy
 using Flux.Optimise: Params, runall, @progress, gradient, update!, StopException, batchmemaybe
 
 export fnr, fpr, Maximum, Quantile, Kth, AllSamples, NegSamples, PosSamples, hinge, quadratic, threshold, Buffer, train_with_buffer!
