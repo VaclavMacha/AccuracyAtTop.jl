@@ -28,7 +28,6 @@ function find_threshold(::Minimum{T}, targets, scores) where T
     return find_score(T, findmin, targets, scores)
 end
 
-
 struct Quantile{I<:SampleIndices, T<:Real} <: AbstractThreshold
     τ::T
     rev::Bool
