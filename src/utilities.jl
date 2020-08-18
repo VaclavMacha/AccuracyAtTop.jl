@@ -1,60 +1,54 @@
-getdim(A::AbstractArray, d::Integer, i) = getindex(A, Base._setindex(i, d, axes(A)...)...)
+# auxiliary functions
+find_negatives(targets) = findall(vec(targets) .== 0)
+find_positives(targets) = findall(vec(targets) .== 1)
 
-clip(x, xmin, xmax) = min(max(xmin, x), xmax)
+@nograd find_negatives, find_positives
 
-isneg(target) = target == 0
-ispos(target) = target == 1
-
-find_negatives(target) = findall(isneg.(vec(target)))
-find_positives(target) = findall(ispos.(vec(target)))
-
-function weights(target)
-    n_pos = sum(ispos.(target))
-    n_neg = length(target) - n_pos
-    return target ./ n_pos .+ (1 .- target) ./ n_neg
+function find_kth(x, k::Int; rev::Bool = false)
+    ind = partialsortperm(x, k, rev = rev)
+    return x[ind], ind
 end
 
-@nograd find_negatives, find_positives, weights
+function find_quantile(x, τ::Real; rev::Bool = false)
+    0 <= τ <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
 
-
-function scores_max(scores, inds = LinearIndices(scores))
-    val, ind = findmax(view(scores, inds))
-
-    return val, inds[ind]
-end
-
-
-function scores_kth(scores::AbstractArray{T, 2}, k::Int, inds = LinearIndices(scores); kwargs...) where T
-    size(scores, 1) == 1 || throw(ArgumentError("scores must be row or column vector"))
-    return scores_kth(vec(scores), k, vec(inds); kwargs...)
-end
-
-
-function scores_kth(scores::AbstractVector, k::Int, inds = LinearIndices(scores); rev::Bool = false)
-    vals = view(scores, inds)
-    n    = length(vals)
-    1 <= k <= n || throw(ArgumentError("input index out of {1,$n} set"))
-
-    ind = partialsortperm(vals, k, rev = rev)
-
-    return vals[ind], inds[ind]
-end
-
-
-function scores_quantile(scores, p::Real, inds = LinearIndices(scores))
-    0 <= p <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
-
-    n = min(length(scores), length(inds))
-    k = clip(floor(Int64, n*p), 1, n)
+    n = length(x)
+    i = rev ? 1 - τ : τ
+    k = min(max(1, round(Int64, n*i)), n)
 
     if k <= n/2
-        return scores_kth(scores, k, inds; rev = false)
+        return find_kth(x, k; rev = false)
     else
-        return scores_kth(scores, n - k + 1, inds; rev = true)
+        return find_kth(x, n - k + 1; rev = true)
     end
 end
 
+# find score
+function find_score(::Type{AllSamples}, find::Function, targets, scores, args...; kwargs...)
+    return find(view(scores, :), args...; kwargs...)
+end
 
-# Surrogate functions
+function find_score(::Type{NegSamples}, find::Function, targets, scores, args...; kwargs...)
+    inds = find_negatives(targets)
+    val, ind = find(view(scores, inds), args...; kwargs...)
+    return val, inds[ind]
+end
+
+function find_score(::Type{PosSamples}, find::Function, targets, scores, args...; kwargs...)
+    inds = find_positives(targets)
+    val, ind = find(view(scores, inds), args...; kwargs...)
+    return val, inds[ind]
+end
+
+# surrogate functions
 hinge(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)
 quadratic(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)^2
+
+# objectives
+function fnr(target, scores, t, surrogate = quadratic)
+    return mean(surrogate.(t .- scores[find_positives(target)]))
+end
+
+function fpr(target, scores, t, surrogate = quadratic)
+    return mean(surrogate.(scores[find_negatives(target)] .- t))
+end

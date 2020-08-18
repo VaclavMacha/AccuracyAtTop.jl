@@ -6,43 +6,77 @@ using Zygote: @adjoint, @nograd
 using Flux: sigmoid, binarycrossentropy
 using Flux.Optimise: Params, runall, @progress, gradient, update!, StopException, batchmemaybe
 
+export fnr, fpr, Maximum, Quantile, Kth, AllSamples, NegSamples, PosSamples, hinge, quadratic, threshold, Buffer, train_with_buffer!
 
-include("models.jl")
+# custom types
+abstract type AbstractThreshold end
+abstract type SampleIndices end
+abstract type AllSamples <: SampleIndices end
+abstract type PosSamples <: SampleIndices end
+abstract type NegSamples <: SampleIndices end
+
+include("thresholds.jl")
 include("utilities.jl")
 
-export loss_baseline, loss_fnr, loss_fpr, DeepTopPush, DeepTopPushK,
-       PatMat, PatMatNP, RecAtK, PrecAtRec, hinge, quadratic
+# buffer
+mutable struct Buffer
+    t::Float64
+    ind::Int64
+    active::Bool
+end
 
-const THRESHOLD = Ref{Float64}(Inf)
-const THRESHOLD_IND = Ref{Int}(-1)
+Buffer(; active = false) = Buffer(Inf, -1, active)
 
-lastthreshold() = THRESHOLD[]
-lastthreshold_ind() = THRESHOLD_IND[]
+const BUFFER = Ref{Buffer}(Buffer())
 
-function set_lastthreshold!(t::Real, ind::Int)
-    THRESHOLD[] = t
-    THRESHOLD_IND[] = ind
+function update_buffer!(b::Buffer)
+    BUFFER[] = b
     return
 end
-update_ind!(inds) = THRESHOLD_IND[] = inds[THRESHOLD_IND[]]
-add_inds(inds, ind::Int) = ind > 0 ? vcat(inds, ind) : inds
+
+function update_buffer!(t::Real, ind)
+    BUFFER[].t = t
+    BUFFER[].ind = ind
+    return
+end
+
+function update_buffer!(inds)
+    BUFFER[].ind = inds[BUFFER[].ind]
+    return
+end
+
+function update_inds(inds::AbstractArray{<:Int})
+    if BUFFER[].ind > 0 && BUFFER[].active
+        return cat(inds, BUFFER[].ind; dims = ndims(inds))
+    else
+        return inds
+    end
+end
 
 # train! function
-function train_buffer!(loss, ps, loader::Function, data_inds, opt; cb = () -> (), buffer::Bool = true)
+function train_with_buffer!(
+    loss,
+    ps,
+    loader::Function,
+    data_inds,
+    opt;
+    cb = () -> (),
+    buffer::Buffer = Buffer()
+)
+
     ps = Params(ps)
     cb = runall(cb)
+    update_buffer!(buffer)
 
     @progress for inds in data_inds
-        if buffer
-            inds = add_inds(inds, lastthreshold_ind())
-        end
-        d = loader(inds)
+        inds2 = update_inds(inds)
+        d = loader(inds2)
         try
             gs = gradient(ps) do
                 loss(batchmemaybe(d)...)
             end
             update!(opt, ps, gs)
-            buffer && update_ind!(inds)
+            update_buffer!(inds2)
             cb()
         catch ex
             if ex isa StopException
