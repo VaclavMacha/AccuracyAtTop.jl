@@ -45,10 +45,10 @@ hinge(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)
 quadratic(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)^2
 
 # objectives
-function fnr(target, scores, t, surrogate = quadratic)
-    return mean(surrogate.(t .- scores[find_positives(target)]))
+function fnr(targets, scores, t, surrogate = quadratic)
+    return mean(surrogate.(t .- scores[find_positives(targets)]))
 end
 
-function fpr(target, scores, t, surrogate = quadratic)
-    return mean(surrogate.(scores[find_negatives(target)] .- t))
+function fpr(targets, scores, t, surrogate = quadratic)
+    return mean(surrogate.(scores[find_negatives(targets)] .- t))
 end
