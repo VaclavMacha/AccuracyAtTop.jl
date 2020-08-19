@@ -1,93 +1,58 @@
 
 # AccuracyAtTop.jl
 
-This repository is a complementary material to our paper *End-to-end network for Accuracy at the top*. This paper was submitted to the [NeurIPS | 2020 Thirty-fourth Conference on Neural Information Processing Systems](https://nips.cc/Conferences/2020).
 
  ## Instalation
 
 To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/Pkg/index.html](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html)) and following command
 
 ```julia
- add https://github.com/VaclavMacha/AccuracyAtTop.jl
+ add https://github.com/VaclavMacha/AccuracyAtTop.jl#develop
 ```
 
  ## Usage
- 
- This package provides the following methods
-* Models:
-    1. `BaseLine(classifier; [objective, ...])`
-    2. `BalancedBaseLine(classifier; [objective, ...])`
-    3. `TopPush(classifier; [objective, ...])`
-    4. `TopPushK(K, classifier; [surrogate, buffer, ...])`
-    5. `PatMat(tau, classifier; [surrogate, buffer, ...])`
-    6. `PatMatNP(tau, classifier; [surrogate, buffer, ...])`
-    7. `RecAtK(K, classifier; [surrogate, buffer, ...])`
-    8. `PrecAtRec(rec, classifier; [surrogate, buffer, ...])`
-* Buffers:
-    1. `NoBuffer()`
-    2. `ScoresDelay(T, buffer_size)`
-    3. `LastThreshold(batch_ind, sample_ind)`
-* Surrogates:
-    1. `Hinge(theta)`
-    2. `Quadratic(theta)`
-    3. `Sigmoid(theta)`
 
-The following example shows the basic use of the package. The complete set of all experiments included in the article is in a separate repository [AccuracyAtTop_experiments.jl](https://github.com/VaclavMacha/AccuracyAtTop_experiments.jl/tree/NeurIPS_v1)
+This package provides a simple but powerful interface for solving many optimization problems with decision threshold
+constraints. The package provides two functions that can be used as an objectives for the optimization
+
+* `fnr(targets, scores, t, [surrogate = quadratic])`: computes the approximation of false-negative rate
+* `fpr(targets, scores, t, [surrogate = quadratic])`: computes the approximation of false-positive rate
+
+where `targets` is a vector of targets (true labels); `scores` is a vector of classification scores given by the used model; `t` is a decision threshold and `surrogate` is a function that is used as an approximation of the indicator function (indicator function returns `1` if its argument is true and `0` otherwise). The package provides two basic surrogate functions namely hinge loss and quadratic hinge loss
+
+* `hinge(x, [ϑ = 1])`: hinge loss defined as ` max(0, 1 + ϑ * x)`
+* `quadratic(x, [ϑ = 1])`: quadratic hinge loss defined as `max(0, 1 + ϑ * x)^2`
+
+However, it is possible to define and use any other surrogate function. To define the decision threshold `t`, the package provides function `threshold(t_type, targets, scores)` where the first argument specifies the type of the threshold. There are four basic type of the decision thresholds
+
+* `Maximum(; [samples = NegSamples])`: the threshold represents the maximum of `scores`
+* `Minimum(; [samples = PosSamples])`: the threshold represents the maximum of `scores`
+* `Kth(k; [samples = NegSamples, rev = true])`: the threshold represents `k`-th largest element of `scores` if `rev = true` and `k`-th smallest element otherwise
+* `Quantile(τ; [samples = NegSamples, rev = true])`: the threshold represents `τ`-quantile of `scores` if `rev = false` and `(1 - τ)`-quantile otherwise
+
+The keyword argument `samples` determines from which samples the threshold should be calculated. There are three options
+
+* `AllSamples`: the threshold is computed from all classification scores
+* `NegSamples`: the threshold is computed only from the scores corresponding to the negative samples
+* `PosSamples`: the threshold is computed only from the scores corresponding to the positive samples
+
+The package also provides four commonly used types of thresholds (in fact these are only outer constructors for `Quantile` threshold type)
+
+* `TPRate(τ::Real)`: the threshold represents true-positive rate
+* `TNRate(τ::Real)`: the threshold represents true-negative rate
+* `FPRate(τ::Real)`: the threshold represents false-positive rate
+* `FNRate(τ::Real)`: the threshold represents false-negative rate
+
+The following example shows, how to minimize false-negative rate with a given constraint that false-positive rate is smaller or equal to `5%`
 
 ```julia
-using AccuracyAtTop, MLDatasets, MLDataPattern
-import AccuracyAtTop: @runepochs
+model = Chain(...)
+t_type = FPRate(0.05)
+surrogate = hinge
 
-function make_minibatches(x, y, batchsize, n)
-    map(RandomBatches((x,y), size = batchsize, count = n)) do (x, y)
-        Array(x), Array(y)
-    end
+function loss(data, targets)
+    scores = model(data)
+    t = threshold(t_type, targets, scores)
+    return fnr(target, scores, t, surrogate)
 end
-
-T = Float32
-
-# load dataset and create minibatches
-x, y = MLDatasets.FashionMNIST.traindata(T);
-x = Array(reshape(x, 28, 28, 1, :));
-y = Array(reshape(y .== 0, 1, :));
-batches = make_minibatches(x, y, 64, 1000) |> gpu;
-
-
-# create model
-cls = Chain(
-    Conv((5, 5), 1=>20, stride=(1,1), relu),
-    MaxPool((2,2)),
-
-    Conv((5, 5), 20=>50, stride=(1,1), relu),
-    MaxPool((2,2)),
-
-    x -> reshape(x, :, size(x, 4)),
-    Dense(4*4*50, 500),
-    Dense(500, 1)
-);
-
-model = TopPush(cls; T = T, surrogate = Quadratic(), buffer = LastThreshold(1,1)) |> gpu
-
-
-# train model
-opt = Descent(0.0001)
-@runepochs 10 train!(model, batches, opt)
-
-
-# test
-using EvalMetrics
-
-scores = Float32[]
-target = Bool[]
-
-map(batches) do (x, y)
-    append!(target, vec(cpu(y)))
-    append!(scores, vec(cpu(model(x))))
-end
-
-t = threshold(cpu(model), target, scores)
-c = counts(target, scores, t; classes = (false, true))
-
-precision(c)
-accuracy(c)
 ```
