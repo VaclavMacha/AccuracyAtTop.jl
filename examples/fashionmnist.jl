@@ -64,12 +64,12 @@ pars = params(model);
 thres = Maximum(; samples = NegSamples);
 γ = T(1e-4)
 
-sgsum(x) = sum(abs2, x)
+sqsum(x) = sum(abs2, x)
 
 function loss(x, y)
     s = model(x)
     t = threshold(thres, y, s)
-    return fnr(y, s, t, surrogate) + γ * sum(sgsum, pars)
+    return fnr(y, s, t, surrogate) + γ * sum(sqsum, pars)
 end
 
 # test
