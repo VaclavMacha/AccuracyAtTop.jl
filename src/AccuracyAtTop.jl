@@ -9,7 +9,7 @@ using Zygote: @adjoint, @nograd
 
 export AllSamples, NegSamples, PosSamples, Buffer
 export Maximum, Quantile, Kth, TPRate, TNRate, FPRate, FNRate
-export fnr, fpr, hinge, quadratic, threshold, train_with_buffer!
+export fnr, fpr, hinge, quadratic, threshold
 
 # custom types
 abstract type AbstractThreshold end
@@ -25,14 +25,13 @@ include("utilities.jl")
 mutable struct Buffer
     t::Float64
     ind::Int64
-    active::Bool
 end
 
-Buffer(; active = false) = Buffer(Inf, -1, active)
+Buffer() = Buffer(Inf, 0)
 
 const BUFFER = Ref{Buffer}(Buffer())
 
-function update_buffer!(b::Buffer)
+function reset_buffer!(b::Buffer)
     BUFFER[] = b
     return
 end
@@ -41,54 +40,6 @@ function update_buffer!(t::Real, ind)
     BUFFER[].t = t
     BUFFER[].ind = ind
     return
-end
-
-function update_buffer!(inds)
-    BUFFER[].ind = inds[BUFFER[].ind]
-    return
-end
-
-function update_inds(inds::AbstractArray{<:Int})
-    if BUFFER[].ind > 0 && BUFFER[].active
-        return cat(inds, BUFFER[].ind; dims = ndims(inds))
-    else
-        return inds
-    end
-end
-
-# train! function
-function train_with_buffer!(
-    loss,
-    ps,
-    loader::Function,
-    data_inds,
-    opt;
-    cb = () -> (),
-    buffer::Buffer = Buffer()
-)
-
-    ps = Params(ps)
-    cb = runall(cb)
-    update_buffer!(buffer)
-
-    @progress for inds in data_inds
-        inds2 = update_inds(inds)
-        d = loader(inds2)
-        try
-            gs = gradient(ps) do
-                loss(d...)
-            end
-            update!(opt, ps, gs)
-            update_buffer!(inds2)
-            cb()
-        catch ex
-            if ex isa StopException
-                break
-            else
-                rethrow(ex)
-            end
-        end
-    end
 end
 
 end # module
