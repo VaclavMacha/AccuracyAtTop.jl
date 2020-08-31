@@ -55,6 +55,8 @@ function find_threshold(t::Kth{T, I}, targets, scores) where {I, T}
 end
 
 # basic options
+PRate(τ) = Quantile(τ; samples = AllSamples, rev = true)
+NRate(τ) = Quantile(τ; samples = AllSamples, rev = false)
 TPRate(τ) = Quantile(τ; samples = PosSamples, rev = true)
 TNRate(τ) = Quantile(τ; samples = NegSamples, rev = false)
 FPRate(τ) = Quantile(τ; samples = NegSamples, rev = true)

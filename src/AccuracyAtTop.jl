@@ -8,7 +8,7 @@ using Flux.Optimise: gradient, update!, runall
 using Zygote: @adjoint, @nograd
 
 export AllSamples, NegSamples, PosSamples, Buffer
-export Maximum, Quantile, Kth, TPRate, TNRate, FPRate, FNRate
+export Maximum, Quantile, Kth, PRate, NRate, TPRate, TNRate, FPRate, FNRate
 export fnr, fpr, hinge, quadratic, threshold
 
 # custom types
