@@ -1,9 +1,9 @@
 function threshold(thres::AbstractThreshold, targets, scores)
-    return find_threshold(thres, targets, scores)[1]
+    return find_threshold(thres, cpu(targets), cpu(scores))[1]
 end
 
 @adjoint function threshold(thres::AbstractThreshold, targets, scores)
-    t, ind = find_threshold(thres, targets, scores)
+    t, ind = find_threshold(thres, cpu(targets), cpu(scores))
     Δt_s = zero(scores)
     Δt_s[ind] = 1
 
