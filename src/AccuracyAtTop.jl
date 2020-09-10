@@ -1,32 +1,45 @@
 module AccuracyAtTop
 
-using Reexport, LinearAlgebra, Statistics, TimerOutputs
+using LinearAlgebra, Statistics, Flux
 
-@reexport using Flux
+using Flux.Optimise: Params, StopException
+using Flux.Optimise: @progress
+using Flux.Optimise: gradient, update!, runall
+using Zygote: @adjoint, @nograd
 
-import Flux: cpu, gpu, params, gradient, sigmoid, binarycrossentropy
-import Flux.Optimise: train!, update!, runall, StopException
-import Zygote: hook, Grads
+export AllSamples, NegSamples, PosSamples, Buffer
+export Maximum, Quantile, Kth, PRate, NRate, TPRate, TNRate, FPRate, FNRate
+export fnr, fpr, hinge, quadratic, threshold
 
-import Random: randperm
-import DataStructures: CircularBuffer
-import Parameters: @with_kw_noshow
-import ProgressMeter: @showprogress
-import BSON
-import Base: show
+# custom types
+abstract type AbstractThreshold end
+abstract type SampleIndices end
+abstract type AllSamples <: SampleIndices end
+abstract type PosSamples <: SampleIndices end
+abstract type NegSamples <: SampleIndices end
 
-
-# Models
-include("models.jl")
-export BaseLine, BalancedBaseLine,
-       TopPush, TopPushK, PatMat, PatMatNP, RecAtK, PrecAtRec, threshold
-
-# Utilities
+include("thresholds.jl")
 include("utilities.jl")
-export @runepochs, @tracktime, train!, Hinge, Quadratic, Sigmoid, allow_cuda, status_cuda
 
-# Gradients
-include("gradients.jl")
-export NoBuffer, ScoresDelay, LastThreshold
+# buffer
+mutable struct Buffer
+    t::Float64
+    ind::Int64
+end
+
+Buffer() = Buffer(Inf, 0)
+
+const BUFFER = Ref{Buffer}(Buffer())
+
+function reset_buffer!(b::Buffer)
+    BUFFER[] = b
+    return
+end
+
+function update_buffer!(t::Real, ind)
+    BUFFER[].t = t
+    BUFFER[].ind = ind
+    return
+end
 
 end # module

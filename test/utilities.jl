@@ -1,74 +1,65 @@
-import AccuracyAtTop: clip, ispos, isneg, find_negatives, find_positives
-import AccuracyAtTop: scores_max, scores_kth, scores_quantile
-import AccuracyAtTop: Surrogate
+using AccuracyAtTop: find_negatives, find_positives
+using AccuracyAtTop: find_kth, find_quantile, find_score
+using AccuracyAtTop: hinge, quadratic
 
-# -------------------------------------------------------------------------------
-# Cuda
-# -------------------------------------------------------------------------------
-@testset "Cuda" begin
-    tmp = AccuracyAtTop.Flux.use_cuda[]
-    allow_cuda(true)
-    @test AccuracyAtTop.Flux.use_cuda[] == true
-    allow_cuda(false)
-    @test AccuracyAtTop.Flux.use_cuda[] == false
-    allow_cuda(tmp)
-end
-
-
-# -------------------------------------------------------------------------------
-# auxiliary threshold functions
-# -------------------------------------------------------------------------------
-scores = reshape(collect(1:10), 1, :)
-target = scores .>= 6
+scores = collect(1:10)
+targets = scores .>= 6
 
 @testset "auxiliary threshold functions" begin
-    @test clip(2,1,3) == 2
-    @test clip(0,1,3) == 1
-    @test clip(4,2,3) == 3
+    @test find_negatives(targets) == [1, 2, 3, 4, 5]
+    @test find_positives(targets) == [6, 7, 8, 9, 10]
 
-    @test isneg.(target) == .~target
-    @test ispos.(target) == target
+    @testset "maximum" begin
+        @test find_score(AllSamples, findmax, targets, scores) == (10, 10)
+        @test find_score(NegSamples, findmax, targets, scores) == (5, 5)
+        @test find_score(PosSamples, findmax, targets, scores) == (10, 10)
+    end
 
-    @test find_negatives(target) == [1,2,3,4,5]
-    @test find_positives(target) == [6,7,8,9,10]
+    @testset "minimum" begin
+        @test find_score(AllSamples, findmin, targets, scores) == (1, 1)
+        @test find_score(NegSamples, findmin, targets, scores) == (1, 1)
+        @test find_score(PosSamples, findmin, targets, scores) == (6, 6)
+    end
 
-    @test scores_max(scores)                         == (10, 10)
-    @test scores_max(scores, find_negatives(target)) == (5, 5)
-    @test scores_max(scores, find_positives(target)) == (10, 10)
+    @testset "$(k) all samples" for k in 1:10
+        @test find_kth(scores, k) == (k, k)
+        @test find_score(AllSamples, find_kth, targets, scores, k) == (k, k)
+        @test find_kth(scores, k; rev = true) == (11 - k, 11 - k)
+        @test find_score(AllSamples, find_kth, targets, scores, k; rev = true) == (11 - k, 11 - k)
+    end
 
-    @test scores_kth(scores, 2)                                     == (2, 2)
-    @test scores_kth(scores, 2, find_negatives(target))             == (2, 2)
-    @test scores_kth(scores, 2, find_positives(target))             == (7, 7)
-    @test scores_kth(scores, 2; rev = true)                         == (9, 9)
-    @test scores_kth(scores, 2, find_negatives(target); rev = true) == (4, 4)
-    @test scores_kth(scores, 2, find_positives(target); rev = true) == (9, 9)
+    @testset "$(k) pos/neg samples" for k in 1:5
+        @test find_score(NegSamples, find_kth, targets, scores, k) == (k, k)
+        @test find_score(NegSamples, find_kth, targets, scores, k; rev = true) == (6 - k, 6 - k)
+        @test find_score(PosSamples, find_kth, targets, scores, k) == (5 + k, 5 + k)
+        @test find_score(PosSamples, find_kth, targets, scores, k; rev = true) == (11 - k, 11 - k)
+    end
 
-    @test scores_quantile(scores, 0.4)                         == (4, 4)
-    @test scores_quantile(scores, 0.4, find_negatives(target)) == (2, 2)
-    @test scores_quantile(scores, 0.4, find_positives(target)) == (7, 7)
+    @testset "$(τ)-quantile all samples" for (k, τ) in zip(vcat(1, 1:10), 0:0.1:1)
+        @test find_quantile(scores, τ) == (k, k)
+        @test find_score(AllSamples, find_quantile, targets, scores, τ) == (k, k)
+    end
+
+    @testset "$(τ)-quantile all samples" for (k, τ) in zip(vcat(10:-1:1, 1), 0:0.1:1)
+        @test find_quantile(scores, τ; rev = true) == (k, k)
+        @test find_score(AllSamples, find_quantile, targets, scores, τ; rev = true) == (k, k)
+    end
+
+    @testset "$(τ)-quantile pos/neg samples" for (k, τ) in zip(vcat(1, 1:5), 0:0.2:1)
+        @test find_score(NegSamples, find_quantile, targets, scores, τ) == (k, k)
+        @test find_score(PosSamples, find_quantile, targets, scores, τ) == (k + 5, k + 5)
+    end
+
+    @testset "find $(τ)-quantile all samples" for (k, τ) in zip(vcat(5:-1:1, 1), 0:0.2:1)
+        @test find_score(NegSamples, find_quantile, targets, scores, τ; rev = true) == (k, k)
+        @test find_score(PosSamples, find_quantile, targets, scores, τ; rev = true) == (k + 5, k + 5)
+    end
 end
 
-
-# -------------------------------------------------------------------------------
 # Surrogate functions
-# -------------------------------------------------------------------------------
 ϑ = rand()
 
-@testset "auxiliary threshold functions" begin
-    l1 = Hinge(ϑ)
-    @testset "hinge loss" begin
-        @test typeof(l1) <: Surrogate
-        @test l1.ϑ == ϑ
-        @test l1.value.([-1/ϑ - 1, 0, -1/ϑ + 1])    ≈ [0, 1, ϑ]
-        @test l1.gradient.([-1/ϑ - 1, 0, -1/ϑ + 1]) ≈ [0, ϑ, ϑ]
-    end
-
-
-    l2 = Quadratic(ϑ)
-    @testset "quadratic loss" begin
-        @test typeof(l2) <: Surrogate
-        @test l2.ϑ == ϑ
-        @test l2.value.([-1/ϑ - 1, 0, -1/ϑ + 1])    ≈ [0, 1, ϑ^2]
-        @test l2.gradient.([-1/ϑ - 1, 0, -1/ϑ + 1]) ≈ [0, 2*ϑ, 2*ϑ^2]
-    end
+@testset "surrrogate functions" begin
+    @test hinge.([-1/ϑ - 1, 0, -1/ϑ + 1], ϑ) ≈ [0, 1, ϑ]
+    @test quadratic.([-1/ϑ - 1, 0, -1/ϑ + 1], ϑ) ≈ [0, 1, ϑ^2]
 end
