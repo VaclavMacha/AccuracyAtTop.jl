@@ -41,6 +41,19 @@ function find_threshold(t::Quantile{I, T}, targets, scores) where {I, T}
     return find_score(I, find_quantile, targets, scores, t.τ; rev = t.rev)
 end
 
+struct SampledQuantile{I<:SampleIndices} <: AbstractThreshold
+    sampler
+    rev::Bool
+
+    function SampledQuantile(sampler; samples = NegSamples, rev = true)
+        return new{samples}(sampler, rev)
+    end
+end
+
+function find_threshold(t::SampledQuantile{I}, targets, scores) where I
+    return find_score(I, find_quantile, targets, scores, t.sampler(); rev = t.rev)
+end
+
 struct Kth{I<:SampleIndices, T<:Integer} <: AbstractThreshold
     k::T
     rev::Bool
@@ -61,3 +74,10 @@ TPRate(τ) = Quantile(τ; samples = PosSamples, rev = true)
 TNRate(τ) = Quantile(τ; samples = NegSamples, rev = false)
 FPRate(τ) = Quantile(τ; samples = NegSamples, rev = true)
 FNRate(τ) = Quantile(τ; samples = PosSamples, rev = false)
+
+SampledPRate(sampler) = SampledQuantile(sampler; samples = AllSamples, rev = true)
+SampledNRate(sampler) = SampledQuantile(sampler; samples = AllSamples, rev = false)
+SampledTPRate(sampler) = SampledQuantile(sampler; samples = PosSamples, rev = true)
+SampledTNRate(sampler) = SampledQuantile(sampler; samples = NegSamples, rev = false)
+SampledFPRate(sampler) = SampledQuantile(sampler; samples = NegSamples, rev = true)
+SampledFNRate(sampler) = SampledQuantile(sampler; samples = PosSamples, rev = false)

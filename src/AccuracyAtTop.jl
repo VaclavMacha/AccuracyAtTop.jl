@@ -8,7 +8,9 @@ using Flux.Optimise: gradient, update!, runall
 using Zygote: @adjoint, @nograd
 
 export AllSamples, NegSamples, PosSamples, Buffer
-export Maximum, Quantile, Kth, PRate, NRate, TPRate, TNRate, FPRate, FNRate
+export Maximum, Quantile, Kth, SampledQuantile
+export PRate, NRate, TPRate, TNRate, FPRate, FNRate
+export SampledPRate, SampledNRate, SampledTPRate, SampledTNRate, SampledFPRate, SampledFNRate
 export fnr, fpr, hinge, quadratic, threshold
 
 # custom types
@@ -41,5 +43,7 @@ function update_buffer!(t::Real, ind)
     BUFFER[].ind = ind
     return
 end
+
+update_buffer!(t, ind) = nothing
 
 end # module

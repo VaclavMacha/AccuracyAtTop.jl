@@ -9,17 +9,22 @@ function find_kth(x, k::Int; rev::Bool = false)
     return x[ind], ind
 end
 
-function find_quantile(x, τ::Real; rev::Bool = false)
-    0 <= τ <= 1 || throw(ArgumentError("input probability out of [0,1] range"))
+function find_kth(x, ks; rev::Bool = false)
+    inds = partialsortperm(x, 1:maximum(ks), rev = rev)
+    return x[inds[ks]], inds[ks]
+end
+
+function find_quantile(x, τ; rev::Bool = false)
+    all(0 .<= τ .<= 1) || throw(ArgumentError("input probability out of [0,1] range"))
 
     n = length(x)
-    i = rev ? 1 - τ : τ
-    k = min(max(1, round(Int64, n*i)), n)
+    i = rev ? 1 .- τ : τ
+    ks = min.(max.(1, round.(Int64, n.*i)), n)
 
-    if k <= n/2
-        return find_kth(x, k; rev = false)
+    if maximum(ks) <= n/2
+        return find_kth(x, ks; rev = false)
     else
-        return find_kth(x, n - k + 1; rev = true)
+        return find_kth(x, n .- ks .+ 1; rev = true)
     end
 end
 
