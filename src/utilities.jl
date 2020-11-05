@@ -1,4 +1,7 @@
 # auxiliary functions
+using Distributions: Sampleable, Univariate, Continuous, Uniform
+using Random: AbstractRNG
+
 find_negatives(targets) = findall(vec(targets) .== 0)
 find_positives(targets) = findall(vec(targets) .== 1)
 
@@ -57,3 +60,11 @@ end
 function fpr(targets, scores, t, surrogate = quadratic)
     return mean(surrogate.(scores[find_negatives(targets)] .- t))
 end
+
+# samplers
+struct LogUniform <: Sampleable{Univariate,Continuous}
+    d
+    LogUniform(a, b) = new(Uniform(log10(a), log10(b)))
+end
+
+Base.rand(rng::AbstractRNG, s::LogUniform) = 10 ^ rand(rng, s.d)

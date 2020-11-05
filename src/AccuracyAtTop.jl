@@ -12,6 +12,7 @@ export Maximum, Quantile, Kth, SampledQuantile
 export PRate, NRate, TPRate, TNRate, FPRate, FNRate
 export SampledPRate, SampledNRate, SampledTPRate, SampledTNRate, SampledFPRate, SampledFNRate
 export fnr, fpr, hinge, quadratic, threshold
+export LogUniform
 
 # custom types
 abstract type AbstractThreshold end
