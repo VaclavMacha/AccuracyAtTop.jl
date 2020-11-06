@@ -53,12 +53,44 @@ hinge(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)
 quadratic(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)^2
 
 # objectives
-function fnr(targets, scores, t, surrogate = quadratic)
+function fnr(targets, scores, t::Real, surrogate = quadratic)
     return mean(surrogate.(t .- scores[find_positives(targets)]))
 end
 
-function fpr(targets, scores, t, surrogate = quadratic)
+function fnr(
+    targets,
+    scores,
+    t,
+    surrogate = quadratic;
+    weights = ones(eltype(scores), length(t)) ./ length(t)
+)
+
+    if size(targets) != size(scores)
+        throw(DimensionMismatch("Inconsistent size of `targets` and `scores`."))
+    end
+
+    fnrs = [fnr(targets[i, :], scores[i, :], t[i], surrogate) for i in 1:size(targets, 1)]
+    return sum(weights .* fnrs)
+end
+
+function fpr(targets, scores, t::Real, surrogate = quadratic)
     return mean(surrogate.(scores[find_negatives(targets)] .- t))
+end
+
+function fpr(
+    targets,
+    scores,
+    t,
+    surrogate = quadratic;
+    weights = one(scores[1]) ./ length(t)
+)
+
+    if size(targets) != size(scores)
+        throw(DimensionMismatch("Inconsistent size of `targets` and `scores`."))
+    end
+
+    fprs = [fpr(targets[i, :], scores[i, :], t[i], surrogate) for i in 1:size(targets, 1)]
+    return sum(weights .* fprs)
 end
 
 # samplers
