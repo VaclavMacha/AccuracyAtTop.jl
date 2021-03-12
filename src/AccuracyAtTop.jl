@@ -11,8 +11,8 @@ export AllSamples, NegSamples, PosSamples, Buffer
 export Maximum, Quantile, Kth, SampledQuantile
 export PRate, NRate, TPRate, TNRate, FPRate, FNRate
 export SampledPRate, SampledNRate, SampledTPRate, SampledTNRate, SampledFPRate, SampledFNRate
-export fnr, fpr, hinge, quadratic, threshold
 export LogUniform
+export fnr, fpr, hinge, quadratic, threshold, BatchProvider
 
 # custom types
 abstract type AbstractThreshold end
@@ -30,7 +30,7 @@ mutable struct Buffer
     ind::Int64
 end
 
-Buffer() = Buffer(Inf, 0)
+Buffer() = Buffer(Inf, 1)
 
 const BUFFER = Ref{Buffer}(Buffer())
 
@@ -46,5 +46,47 @@ function update_buffer!(t::Real, ind)
 end
 
 update_buffer!(t, ind) = nothing
+
+struct BatchProvider{I<:Integer}
+    loader
+    neg::Vector{I}
+    pos::Vector{I}
+    n_neg::I
+    n_pos::I
+    buffer::Bool
+    batch::Vector{I}
+
+    function BatchProvider(
+            loader,
+            labels,
+            batchsize;
+            ratio = 0.5,
+            buffer::Bool = false,
+            batch = rand(1:length(labels), batchsize),
+        )
+
+        n_neg = round(Int, batchsize * ratio)
+        n_pos = batchsize - n_neg
+
+        return new{Int}(
+            loader,
+            findall(labels .== false),
+            findall(labels .== true),
+            n_pos,
+            n_neg,
+            buffer,
+            batch,
+        )
+    end
+end
+
+function (b::BatchProvider)(buffer = BUFFER[])
+    inds = vcat(rand(b.neg, b.n_neg), rand(b.pos, b.n_pos))
+    if b.buffer
+        inds[rand(1:(b.n_neg + b.n_pos))] = b.batch[buffer.ind]
+        b.batch .= inds
+    end
+    return b.loader(inds)
+end
 
 end # module
