@@ -34,7 +34,7 @@ Buffer() = Buffer(Inf, 1)
 
 const BUFFER = Ref{Buffer}(Buffer())
 
-function reset_buffer!(b::Buffer)
+function reset_buffer!(b::Buffer = Buffer())
     BUFFER[] = b
     return
 end
@@ -78,6 +78,18 @@ struct BatchProvider{I<:Integer}
             batch,
         )
     end
+end
+
+function Base.show(io::IO, b::BatchProvider)
+    n_neg = length(b.neg)
+    n_pos = length(b.pos)
+    n = n_neg + n_pos
+
+    println(io, "BatchProvider:")
+    println(io, " - dataset (n_neg/n_pos/n): $(n_neg)/$(n_pos)/$(n_neg + n_pos)")
+    println(io, " - batch (k_neg/k_pos/k): $(b.n_neg)/$(b.n_pos)/$(b.n_neg + b.n_pos)")
+    print(io, " - buffer: $(b.buffer)")
+    return
 end
 
 function (b::BatchProvider)(buffer = BUFFER[])
