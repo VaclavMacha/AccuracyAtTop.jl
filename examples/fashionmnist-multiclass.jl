@@ -1,16 +1,21 @@
-using AccuracyAtTop, EvalMetrics, Flux, MLDatasets, Plots, ProgressMeter
+using Revise
 
-using Flux: cpu, gpu, onehotbatch, onecold
-using Flux.Data: DataLoader
-using Random: randperm
-using IterTools: ncycle
+using AccuracyAtTop
+using CUDA
+using EvalMetrics
+using Flux
+using MLDatasets
+using Plots
+using ProgressMeter
+
+using Flux: gpu, onehotbatch, onecold
 
 # ------------------------------------------------------------------------------------------
 # Auxiliary functions
 # ------------------------------------------------------------------------------------------
-function reshape_data(X::AbstractArray{T, 3}, y::AbstractVector; runon = cpu) where T
+function reshape_data(X::AbstractArray{T, 3}, y::AbstractVector, pos_class) where T
     s = size(X)
-    return runon(reshape(X, s[1], s[2], 1, s[3])), runon(onehotbatch(y, 0:9))
+    return reshape(X, s[1], s[2], 1, s[3]), onehotbatch(y, 0:9)
 end
 
 function eval_scores(model, batches)
@@ -27,16 +32,18 @@ end
 # ------------------------------------------------------------------------------------------
 # Data preparation
 # ------------------------------------------------------------------------------------------
+using Flux.Data: DataLoader
+
 T = Float32
 pos_class = 0
-batch_size = 128
-runon = gpu
+batchsize = 128
+device = gpu
 
-X_train, y_train = reshape_data(MLDatasets.FashionMNIST.traindata(T)...; runon = runon);
-X_test, y_test = reshape_data(MLDatasets.FashionMNIST.testdata(T)...; runon = runon);
+X_train, y_train = reshape_data(MLDatasets.FashionMNIST.traindata(T)..., pos_class);
+X_test, y_test = reshape_data(MLDatasets.FashionMNIST.testdata(T)..., pos_class);
 
-batches_train = DataLoader((X_train, y_train); batchsize = batch_size, shuffle = true)
-batches_test = DataLoader((X_test, y_test); batchsize = batch_size, shuffle = true)
+batches_train = (device(batch) for batch in DataLoader((X_train, y_train); batchsize))
+batches_test = (device(batch) for batch in DataLoader((X_test, y_test); batchsize))
 
 # ------------------------------------------------------------------------------------------
 # Model preparation
@@ -53,26 +60,14 @@ model = Chain(
     flatten,
     Dense(4*4*50, 500),
     Dense(500, 10)
-) |> gpu
+) |> device
 
 # objective
 surrogate = quadratic;
 pars = params(model);
-thres = FPRate(0.01)
-γ = T(1e-4)
-w = ones(T, 10) ./ 10
-w[7] = 1
+aatp = DeepTopPush()
 
-sqsum(x) = sum(abs2, x)
-
-function loss(x, y)
-    s = model(x)
-    t = [threshold(thres, y[i, :], s[i, :]) for i in 1:10]
-    return fnr(y, s, t, surrogate; weights = w) + γ * sum(sqsum, pars)
-end
-
-x, y = collect(batches_train)[1]
-@time loss(x, y)
+loss(x, y) = objective(aatp, y, model(x); surrogate)
 
 # ------------------------------------------------------------------------------------------
 # Model training
@@ -80,7 +75,9 @@ x, y = collect(batches_train)[1]
 opt = ADAM(0.001);
 n_epochs = 10
 
-Flux.train!(loss, pars, ncycle(batches_train, n_epochs), opt)
+@showprogress for i in 1:n_epochs
+    Flux.train!(loss, pars, batches_train, opt)
+end
 
 # ------------------------------------------------------------------------------------------
 # Evaluation
@@ -88,20 +85,12 @@ Flux.train!(loss, pars, ncycle(batches_train, n_epochs), opt)
 tar_train, s_train = eval_scores(model, batches_train)
 tar_test, s_test = eval_scores(model, batches_test)
 
+kwargs = (xscale = :log10, xlims = (1e-5, 1))
 
 for ind in 1:10
     plt = plot(
-        prplot(tar_train[ind, :], s_train[ind, :], title = "Train class = $(ind)"),
-        prplot(tar_test[ind, :], s_test[ind, :]; title = "Test"),
-        size = (800, 400)
-    )
-    display(plt)
-end
-
-for ind in 1:10
-    plt = plot(
-        rocplot(tar_train[ind, :], s_train[ind, :], title = "Train = $(ind)", xscale = :log10, xlims = (1e-4, 1)),
-        rocplot(tar_test[ind, :], s_test[ind, :]; title = "Test", xscale = :log10, xlims = (1e-4, 1)),
+        rocplot(tar_train[ind, :], s_train[ind, :]; title = "Train = $(ind)", kwargs...),
+        rocplot(tar_test[ind, :], s_test[ind, :]; title = "Test", kwargs...),
         size = (800, 400)
     )
     display(plt)
