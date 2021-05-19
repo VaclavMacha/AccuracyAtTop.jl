@@ -1,5 +1,8 @@
-using AccuracyAtTop, Test
+using AccuracyAtTop
+using AccuracyAtTop.ChainRulesCore
+using ChainRulesTestUtils
+using Test
 
 @testset "all tests" begin
-    include("./utilities.jl")
+    include("./thresholds.jl")
 end
