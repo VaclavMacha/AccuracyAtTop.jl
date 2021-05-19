@@ -1,104 +1,49 @@
 module AccuracyAtTop
 
-using LinearAlgebra, Statistics, Flux
+using ChainRulesCore
+using LinearAlgebra
+using Statistics
 
-using Flux.Optimise: Params, StopException
-using Flux.Optimise: @progress
-using Flux.Optimise: gradient, update!, runall
-using Zygote: @adjoint, @nograd
+using Distributions: Sampleable, Univariate, Continuous, Uniform
+using Random: AbstractRNG
 
-export AllSamples, NegSamples, PosSamples, Buffer
-export Maximum, Quantile, Kth, SampledQuantile
-export PRate, NRate, TPRate, TNRate, FPRate, FNRate
-export SampledPRate, SampledNRate, SampledTPRate, SampledTNRate, SampledFPRate, SampledFNRate
-export LogUniform
-export fnr, fpr, hinge, quadratic, threshold, BatchProvider
+export All, Neg, Pos, LogUniform
+export Maximum, Minimum, Quantile, Kth, SampledQuantile
+export objective, predict, FNRate, FPRate, FNFPRate
+export AccAtTop, DeepTopPush, DeepTopPushK, PatMat, PatMatNP
+export hinge, quadratic, threshold
+export buffer, reset_buffer!, update_buffer!
 
 # custom types
-abstract type AbstractThreshold end
-abstract type SampleIndices end
-abstract type AllSamples <: SampleIndices end
-abstract type PosSamples <: SampleIndices end
-abstract type NegSamples <: SampleIndices end
+abstract type Objective end
+abstract type Threshold end
+abstract type Indices end
+struct All <: Indices end
+struct Pos <: Indices end
+struct Neg <: Indices end
+
+Base.show(io::IO, ::Type{All}) = print(io, "all")
+Base.show(io::IO, ::Type{Neg}) = print(io, "negative")
+Base.show(io::IO, ::Type{Pos}) = print(io, "positive")
 
 include("thresholds.jl")
-include("utilities.jl")
+include("objectives.jl")
 
 # buffer
-mutable struct Buffer
-    t::Float64
-    ind::Int64
-end
+const LAST_THRESHOLD = Ref{Vector{Float32}}([Inf32])
+const LAST_THRESHOLD_IND = Ref{Vector{Int}}([1])
 
-Buffer() = Buffer(Inf, 1)
+buffer() = LAST_THRESHOLD[], LAST_THRESHOLD_IND[]
 
-const BUFFER = Ref{Buffer}(Buffer())
-
-function reset_buffer!(b::Buffer = Buffer())
-    BUFFER[] = b
+function reset_buffer!()
+    LAST_THRESHOLD[] = [Inf32]
+    LAST_THRESHOLD_IND[] = [1]
     return
 end
 
-function update_buffer!(t::Real, ind)
-    BUFFER[].t = t
-    BUFFER[].ind = ind
+function update_buffer!(t, ind)
+    LAST_THRESHOLD[] = [t...,]
+    LAST_THRESHOLD_IND[] = [ind...,]
     return
 end
-
-update_buffer!(t, ind) = nothing
-
-struct BatchProvider{I<:Integer}
-    loader
-    neg::Vector{I}
-    pos::Vector{I}
-    n_neg::I
-    n_pos::I
-    buffer::Bool
-    batch::Vector{I}
-
-    function BatchProvider(
-            loader,
-            labels,
-            batchsize;
-            ratio = 0.5,
-            buffer::Bool = false,
-            batch = rand(1:length(labels), batchsize),
-        )
-
-        n_neg = round(Int, batchsize * ratio)
-        n_pos = batchsize - n_neg
-
-        return new{Int}(
-            loader,
-            findall(labels .== false),
-            findall(labels .== true),
-            n_pos,
-            n_neg,
-            buffer,
-            batch,
-        )
-    end
-end
-
-function Base.show(io::IO, b::BatchProvider)
-    n_neg = length(b.neg)
-    n_pos = length(b.pos)
-    n = n_neg + n_pos
-
-    println(io, "BatchProvider:")
-    println(io, " - dataset (n_neg/n_pos/n): $(n_neg)/$(n_pos)/$(n_neg + n_pos)")
-    println(io, " - batch (k_neg/k_pos/k): $(b.n_neg)/$(b.n_pos)/$(b.n_neg + b.n_pos)")
-    print(io, " - buffer: $(b.buffer)")
-    return
-end
-
-function (b::BatchProvider)(buffer = BUFFER[])
-    inds = vcat(rand(b.neg, b.n_neg), rand(b.pos, b.n_pos))
-    if b.buffer
-        inds[rand(1:(b.n_neg + b.n_pos))] = b.batch[buffer.ind]
-        b.batch .= inds
-    end
-    return b.loader(inds)
-end
-
 end # module
