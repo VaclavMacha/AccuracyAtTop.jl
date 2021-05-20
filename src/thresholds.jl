@@ -15,8 +15,9 @@ function threshold(
     s::AbstractMatrix;
     update_buffer = true
 )
+    ts, inds = find_threshold(tp, y, s)
     update_buffer && update_buffer!(ts, inds)
-    return find_threshold(tp, y, s)[1]
+    return ts
 end
 
 function ChainRulesCore.rrule(
