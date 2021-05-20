@@ -15,7 +15,7 @@ function threshold(
     s::AbstractMatrix;
     update_buffer = true
 )
-    # TODO buffer
+    update_buffer && update_buffer!(ts, inds)
     return find_threshold(tp, y, s)[1]
 end
 
@@ -28,10 +28,7 @@ function ChainRulesCore.rrule(
 )
 
     ts, inds = find_threshold(tp, y, s)
-    if update_buffer
-
-    end
-    # TODO buffer
+    update_buffer && update_buffer!(ts, inds)
 
     function threshold_pullback(Δ)
         Δt = zero(s)
@@ -192,12 +189,3 @@ end
 function find_threshold(tp::SampledQuantile{I}, y::AbstractVector, s::AbstractVector) where {I}
     return find_threshold(I, find_quantile, y, s, tp.sampler(), tp.rev)
 end
-
-# samplers
-struct LogUniform <: Sampleable{Univariate,Continuous}
-    d
-
-    LogUniform(a, b) = new(Uniform(log10(a), log10(b)))
-end
-
-Base.rand(rng::AbstractRNG, s::LogUniform) = 10 ^ rand(rng, s.d)

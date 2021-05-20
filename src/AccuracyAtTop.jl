@@ -12,7 +12,7 @@ export Maximum, Minimum, Quantile, Kth, SampledQuantile
 export objective, predict, FNRate, FPRate, FNFPRate
 export AccAtTop, DeepTopPush, DeepTopPushK, PatMat, PatMatNP
 export hinge, quadratic, threshold
-export buffer, reset_buffer!, update_buffer!
+export buffer, buffer_ts, buffer_inds, reset_buffer!, update_buffer!, BatchPartition
 
 # custom types
 abstract type Objective end
@@ -28,12 +28,15 @@ Base.show(io::IO, ::Type{Pos}) = print(io, "positive")
 
 include("thresholds.jl")
 include("objectives.jl")
+include("utilities.jl")
 
 # buffer
 const LAST_THRESHOLD = Ref{Vector{Float32}}([Inf32])
 const LAST_THRESHOLD_IND = Ref{Vector{Int}}([1])
 
 buffer() = LAST_THRESHOLD[], LAST_THRESHOLD_IND[]
+buffer_ts() = LAST_THRESHOLD[]
+buffer_inds() = LAST_THRESHOLD_IND[]
 
 function reset_buffer!()
     LAST_THRESHOLD[] = [Inf32]
