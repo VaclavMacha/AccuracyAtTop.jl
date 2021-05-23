@@ -7,14 +7,24 @@ struct FNRate <: Objective end
 Base.show(io::IO, ::FNRate) = print(io, "false-negative rate")
 function objective(::FNRate, y, s, t::Real, surrogate)
     inds = findall(y .== 1)
-    return mean(surrogate.(t .-  s[inds]))
+    if isempty(inds)
+        @warn "no positive samples"
+        return zero(t)
+    else
+        return mean(surrogate.(t .-  s[inds]))
+    end
 end
 
 struct FPRate <: Objective end
 Base.show(io::IO, ::FPRate) = print(io, "false-positive rate")
 function objective(::FPRate, y, s, t::Real, surrogate)
     inds = findall(y .== 0)
-    return mean(surrogate.(s[inds] .- t))
+    if isempty(inds)
+        @warn "no negative samples"
+        return zero(t)
+    else
+        return mean(surrogate.(s[inds] .- t))
+    end
 end
 
 struct FNFPRate <: Objective
