@@ -6,25 +6,15 @@ quadratic(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)^2
 struct FNRate <: Objective end
 Base.show(io::IO, ::FNRate) = print(io, "false-negative rate")
 function objective(::FNRate, y, s, t::Real, surrogate)
-    inds = findall(y .== 1)
-    if isempty(inds)
-        @warn "no positive samples"
-        return zero(t)
-    else
-        return mean(surrogate.(t .-  s[inds]))
-    end
+    inds = y .== 1
+    return sum(surrogate.(t .-  s) .* inds) / sum(inds)
 end
 
 struct FPRate <: Objective end
 Base.show(io::IO, ::FPRate) = print(io, "false-positive rate")
 function objective(::FPRate, y, s, t::Real, surrogate)
-    inds = findall(y .== 0)
-    if isempty(inds)
-        @warn "no negative samples"
-        return zero(t)
-    else
-        return mean(surrogate.(s[inds] .- t))
-    end
+    inds = y .== 0
+    return sum(surrogate.(s .- t)) / sum(inds)
 end
 
 struct FNFPRate <: Objective
