@@ -1,12 +1,13 @@
 # AccuracyAtTop.jl
 
+This repository is a complementary material to our paper *DeepTopPush: Simple and Scalable Method for Accuracy at the Top*. This paper was submitted to the [Thirty-fifth Conference on Neural Information Processing Systems NeurIPS 2021](https://nips.cc/). The following overview shows the basic use of the package. The complete set of all experiments included in the article is in a separate repository [AccuracyAtTop_DeepTopPush](https://github.com/VaclavMacha/AccuracyAtTop_DeepTopPush)
 
  ## Instalation
 
 To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/Pkg/index.html](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html)) and following command
 
 ```julia
- add https://github.com/VaclavMacha/AccuracyAtTop.jl#develop
+(@v1.5) pkg> add https://github.com/VaclavMacha/AccuracyAtTop.jl#NeurIPS
 ```
 
  ## Usage
