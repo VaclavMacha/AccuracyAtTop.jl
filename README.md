@@ -56,5 +56,3 @@ function loss(data, targets)
     return fnr(target, scores, t, surrogate)
 end
 ```
-
-Further examples are given in the [examples](https://github.com/VaclavMacha/AccuracyAtTop.jl/tree/develop/examples) folder.
