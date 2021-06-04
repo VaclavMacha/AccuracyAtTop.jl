@@ -2,7 +2,7 @@
 
 This repository is a complementary material to our paper *DeepTopPush: Simple and Scalable Method for Accuracy at the Top*. This paper was submitted to the [Thirty-fifth Conference on Neural Information Processing Systems NeurIPS 2021](https://nips.cc/). The following overview shows the basic use of the package.
 
- ## Instalation
+ ## Installation
 
 To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/Pkg/index.html](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html)) and following command
 
