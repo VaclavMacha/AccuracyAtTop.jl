@@ -10,6 +10,8 @@ To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/
 (@v1.5) pkg> add https://github.com/VaclavMacha/AccuracyAtTop.jl#NeurIPS
 ```
 
+If you are using the anonymized repository, remove the branch mane `#NeurIPS` from the url.
+
  ## Usage
 
 This package provides a simple but powerful interface for solving many optimization problems with decision threshold
