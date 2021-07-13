@@ -6,7 +6,7 @@
 To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/Pkg/index.html](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html)) and following command
 
 ```julia
- add https://github.com/VaclavMacha/AccuracyAtTop.jl#develop
+ add https://github.com/VaclavMacha/AccuracyAtTop.jl
 ```
 
  ## Usage
