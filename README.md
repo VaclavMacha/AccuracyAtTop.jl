@@ -1,20 +1,12 @@
 # AccuracyAtTop.jl
-
-This repository is a complementary material to our paper *DeepTopPush: Simple and Scalable Method for Accuracy at the Top*. This paper was submitted to the [Thirty-fifth Conference on Neural Information Processing Systems NeurIPS 2021](https://nips.cc/). The following overview shows the basic use of the package.
-
- ## Installation
-
 To install this package use [Pkg REPL]([https://docs.julialang.org/en/v1/stdlib/Pkg/index.html](https://docs.julialang.org/en/v1/stdlib/Pkg/index.html)) and following command
 
 ```julia
-(@v1.5) pkg> add https://github.com/VaclavMacha/AccuracyAtTop.jl#NeurIPS
+(@v1.5) pkg> add https://github.com/VaclavMacha/AccuracyAtTop.jl
 ```
+## Usage
 
-If you are using the anonymized repository, remove the branch mane `#NeurIPS` from the url.
-
- ## Usage
-
-This package provides a simple but powerful interface for solving many optimization problems with decision threshold
+This package provides a simple interface for solving many optimization problems with decision threshold
 constraints. The package provides two functions that can be used as an objectives for the optimization
 
 * `fnr(targets, scores, t, [surrogate = quadratic])`: computes the approximation of false-negative rate
