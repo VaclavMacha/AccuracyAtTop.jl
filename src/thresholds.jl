@@ -34,7 +34,7 @@ function ChainRulesCore.rrule(
     function threshold_pullback(Δ)
         Δt = zero(s)
         Δt[CartesianIndex.(1:length(inds), inds)] .= 1
-        return NO_FIELDS, DoesNotExist(), DoesNotExist(), Δ .* Δt
+        return NoTangent(), NoTangent(), NoTangent(), Δ .* Δt
     end
     return ts, threshold_pullback
 end
