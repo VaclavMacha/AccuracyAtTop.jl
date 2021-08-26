@@ -89,19 +89,19 @@ end
 
 @testset "thresholds rrule" begin
     @testset "$tp" for tp in Maximum.([All, Neg, Pos])
-        test_rrule(threshold, tp ⊢ DoesNotExist(), y ⊢ DoesNotExist(), s)
+        test_rrule(threshold, tp ⊢ NoTangent(), y ⊢ NoTangent(), s)
         test_indices(tp, y, s)
     end
 
     @testset "$tp" for tp in Minimum.([All, Neg, Pos])
-        test_rrule(threshold, tp ⊢ DoesNotExist(), y ⊢ DoesNotExist(), s)
+        test_rrule(threshold, tp ⊢ NoTangent(), y ⊢ NoTangent(), s)
         test_indices(tp, y, s)
     end
 
     @testset "$K" for K in [1, 2, 5, 10, 15]
         @testset "$rev" for rev in [true, false]
             @testset "$tp" for tp in Kth.(K, [All, Neg, Pos]; rev)
-                test_rrule(threshold, tp ⊢ DoesNotExist(), y ⊢ DoesNotExist(), s)
+                test_rrule(threshold, tp ⊢ NoTangent(), y ⊢ NoTangent(), s)
                 test_indices(tp, y, s)
             end
         end
@@ -110,7 +110,7 @@ end
     @testset "$τ" for τ in [0.05, 0.1, 0.15, 0.2, 0.5]
         @testset "$rev" for rev in [true, false]
             @testset "$tp" for tp in Quantile.(τ, [All, Neg, Pos]; rev)
-                test_rrule(threshold, tp ⊢ DoesNotExist(), y ⊢ DoesNotExist(), s)
+                test_rrule(threshold, tp ⊢ NoTangent(), y ⊢ NoTangent(), s)
                 test_indices(tp, y, s)
             end
         end
@@ -120,7 +120,7 @@ end
         sampler() = τ
         @testset "$rev" for rev in [true, false]
             @testset "$tp" for tp in SampledQuantile.(sampler, [All, Neg, Pos]; rev)
-                test_rrule(threshold, tp ⊢ DoesNotExist(), y ⊢ DoesNotExist(), s)
+                test_rrule(threshold, tp ⊢ NoTangent(), y ⊢ NoTangent(), s)
                 test_indices(tp, y, s)
             end
         end

@@ -5,4 +5,5 @@ using Test
 
 @testset "all tests" begin
     include("./thresholds.jl")
+    include("./objectives.jl")
 end
