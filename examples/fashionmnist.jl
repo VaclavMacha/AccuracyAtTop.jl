@@ -1,7 +1,4 @@
-using Revise
-
 using AccuracyAtTop
-using CUDA
 using EvalMetrics
 using Flux
 using MLDatasets
