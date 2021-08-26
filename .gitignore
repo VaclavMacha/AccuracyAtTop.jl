@@ -1,4 +1,7 @@
 sftp-config.json
 .vscode
-Manifest.toml
 tmp
+
+Manifest.toml
+
+!examples/Manifest.toml
