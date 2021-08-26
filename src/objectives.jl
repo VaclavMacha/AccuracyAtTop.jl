@@ -4,17 +4,21 @@ quadratic(x, ϑ::Real = 1) = max(zero(x), 1 + ϑ * x)^2
 
 # Objective functions
 struct FNRate <: Objective end
+
 Base.show(io::IO, ::FNRate) = print(io, "false-negative rate")
-function objective(::FNRate, y, s, t::Real, surrogate)
+
+function objective(::FNRate, y, s, t, surrogate)
     inds = y .== 1
-    return sum(surrogate.(t .-  s) .* inds) / sum(inds)
+    return sum(surrogate.(t .-  s) .* inds; dims = 2) ./ sum(inds; dims = 2)
 end
 
 struct FPRate <: Objective end
+
 Base.show(io::IO, ::FPRate) = print(io, "false-positive rate")
-function objective(::FPRate, y, s, t::Real, surrogate)
+
+function objective(::FPRate, y, s, t, surrogate)
     inds = y .== 0
-    return sum(surrogate.(s .- t)) / sum(inds)
+    return sum(surrogate.(s .-  t) .* inds; dims = 2) ./ sum(inds; dims = 2)
 end
 
 struct FNFPRate <: Objective
@@ -25,9 +29,9 @@ function Base.show(io::IO, o::FNFPRate)
     return print(io, "$(o.α)⋅false-negative + $(1-o.α)⋅false-positive rate")
 end
 
-function objective(o::FNFPRate, y, s, t::Real, surrogate)
-    return o.α*objective(FNRate(), y, s, t, surrogate) +
-           (1 - o.α)*objective(FPRate(), y, s, t, surrogate)
+function objective(o::FNFPRate, y, s, t, surrogate)
+    return o.α .* objective(FNRate(), y, s, t, surrogate) .+
+           (1 - o.α) .* objective(FPRate(), y, s, t, surrogate)
 end
 
 # Accuracy at Top formulation
@@ -48,7 +52,7 @@ function objective(
     y::AbstractMatrix,
     s::AbstractMatrix;
     surrogate = hinge,
-    weights = 1,
+    agg = mean,
     update_buffer = true,
 )
 
@@ -56,21 +60,8 @@ function objective(
         throw(DimensionMismatch("dimensions must match: y has dims $(size(y)), s has dims $(size(s))"))
     end
 
-    k = size(s, 1)
-    if length(weights) == 1
-        ws = fill(weights, k)
-    elseif length(weights) == k
-        ws = weights
-    else
-        throw(DimensionMismatch("length of weights $(length(weights)) does not match first dim of scores $(k)"))
-    end
-
-    l = zero(eltype(s))
     ts = threshold(m.threshold_type, y, s; update_buffer)
-    @inbounds for i in 1:k
-        l += ws[i] * objective(m.objective_type, y[i, :], s[i, :], ts[i], surrogate)
-    end
-    return l
+    return agg(objective(m.objective_type, y, s, ts, surrogate))
 end
 
 function predict(
@@ -84,16 +75,10 @@ function predict(
         throw(DimensionMismatch("dimensions must match: y has dims $(size(y)), s has dims $(size(s))"))
     end
 
-    k = size(s, 1)
-    if length(ts) != 1
-        throw(DimensionMismatch("length of thresholds $(length(ts)) does not match first dim of scores $(k)"))
+    if length(ts) != size(s, 1)
+        throw(DimensionMismatch("length of thresholds $(length(ts)) does not match first dim of scores $(size(s, 1))"))
     end
-
-    y_predict = similar(y)
-    @inbounds for i in 1:k
-        y_predict[i, :] = s[i, :] .>= ts[i]
-    end
-    return y_predict
+    return s .>= ts
 end
 
 # Basic models
