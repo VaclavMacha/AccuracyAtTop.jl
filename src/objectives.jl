@@ -7,8 +7,8 @@ struct FNRate <: Objective end
 
 Base.show(io::IO, ::FNRate) = print(io, "false-negative rate")
 
-function objective(::FNRate, y, s, t, surrogate)
-    inds = y .== 1
+function objective(::FNRate, y, s::AbstractArray{T}, t, surrogate) where {T<:Real}
+    inds = zero(T) .+ (y .== 1)
     return sum(surrogate.(t .-  s) .* inds; dims = 2) ./ sum(inds; dims = 2)
 end
 
@@ -16,8 +16,8 @@ struct FPRate <: Objective end
 
 Base.show(io::IO, ::FPRate) = print(io, "false-positive rate")
 
-function objective(::FPRate, y, s, t, surrogate)
-    inds = y .== 0
+function objective(::FPRate, y, s::AbstractArray{T}, t, surrogate) where {T<:Real}
+    inds = zero(T) .+ (y .== 1)
     return sum(surrogate.(s .-  t) .* inds; dims = 2) ./ sum(inds; dims = 2)
 end
 
