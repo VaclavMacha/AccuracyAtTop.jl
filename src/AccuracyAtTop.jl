@@ -11,7 +11,7 @@ export All, Neg, Pos, LogUniform
 export Maximum, Minimum, Quantile, Kth, SampledQuantile
 export objective, predict, FNRate, FPRate, FNFPRate
 export AccAtTop, DeepTopPush, DeepTopPushK, PatMat, PatMatNP
-export hinge, quadratic, threshold
+export hinge, quadratic, threshold, find_threshold
 export buffer, buffer_ts, buffer_inds, reset_buffer!, update_buffer!, BatchPartition
 
 # custom types
@@ -45,8 +45,8 @@ function reset_buffer!()
 end
 
 function update_buffer!(t, ind)
-    LAST_THRESHOLD[] = [t...,]
-    LAST_THRESHOLD_IND[] = [ind...,]
+    LAST_THRESHOLD[] = [Vector(t)...,]
+    LAST_THRESHOLD_IND[] = [Vector(ind)...,]
     return
 end
 end # module

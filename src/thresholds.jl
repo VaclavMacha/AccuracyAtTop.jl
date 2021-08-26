@@ -9,44 +9,37 @@ function select(::Type{Pos}, y, s)
 end
 
 # Thresholds
-function threshold(
+function threshold(tp::Threshold, y::AbstractMatrix, s::AbstractMatrix; kwargs...)
+    ts, ~ = find_threshold(tp, y, s; kwargs...)
+    return ts
+end
+
+function ChainRulesCore.rrule(::typeof(threshold), tp::Threshold, y, s; kwargs...)
+    ts, inds = find_threshold(tp, y, s; kwargs...)
+
+    function threshold_pullback(Δ)
+        Δt = zeros(Bool, size(s)...)
+        Δt[CartesianIndex.(1:length(inds), inds)] .= 1
+        return NoTangent(), NoTangent(), NoTangent(), Δ .* convert(typeof(s), Δt)
+    end
+    return ts, threshold_pullback
+end
+
+function find_threshold(
     tp::Threshold,
     y::AbstractMatrix,
     s::AbstractMatrix;
     update_buffer = true
 )
-    ts, inds = find_threshold(tp, y, s)
-    update_buffer && update_buffer!(ts, inds)
-    return ts
-end
 
-function ChainRulesCore.rrule(
-    ::typeof(threshold),
-    tp::Threshold,
-    y,
-    s;
-    update_buffer = true,
-)
-
-    ts, inds = find_threshold(tp, y, s)
-    update_buffer && update_buffer!(ts, inds)
-
-    function threshold_pullback(Δ)
-        Δt = zero(s)
-        Δt[CartesianIndex.(1:length(inds), inds)] .= 1
-        return NoTangent(), NoTangent(), NoTangent(), Δ .* Δt
-    end
-    return ts, threshold_pullback
-end
-
-function find_threshold(tp::Threshold, y::AbstractMatrix, s::AbstractMatrix)
     k = size(s, 1)
-    ts, inds = similar(s, k), zeros(Int, k)
+    ts, inds = zeros(eltype(s), k), zeros(Int, k)
 
     @inbounds for i in 1:k
         ts[i], inds[i] = find_threshold(tp, Vector(y[i, :]), Vector(s[i, :]))
     end
-    return ts, inds
+    update_buffer && update_buffer!(ts, inds)
+    return convert(typeof(similar(s, k)), ts), inds
 end
 
 function find_threshold(
