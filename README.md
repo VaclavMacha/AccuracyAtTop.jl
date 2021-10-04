@@ -1,6 +1,6 @@
 # AccuracyAtTop.jl
 
-This repository is a complementary material to our paper *DeepTopPush: Simple and Scalable Method for Accuracy at the Top*. This paper was submitted to the [Thirty-fifth Conference on Neural Information Processing Systems NeurIPS 2021](https://nips.cc/). The following overview shows the basic use of the package.
+This repository is a complementary material to our paper *DeepTopPush: Simple and Scalable Method for Accuracy at the Top*. This paper was submitted to the [36th AAAI Conference on Artificial Intelligence 2022](https://aaai.org/Conferences/AAAI-22/). The following overview shows the basic use of the package.
 
  ## Installation
 
