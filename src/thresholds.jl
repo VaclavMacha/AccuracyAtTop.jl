@@ -20,7 +20,7 @@ function ChainRulesCore.rrule(::typeof(threshold), tp::Threshold, y, s; kwargs..
     function threshold_pullback(Δ)
         Δt = zeros(Bool, size(s)...)
         Δt[CartesianIndex.(1:length(inds), inds)] .= 1
-        return NoTangent(), NoTangent(), NoTangent(), Δ .* convert(typeof(s), Δt)
+        return NO_FIELDS, NoTangent(), NoTangent(), Δ .* convert(typeof(s), Δt)
     end
     return ts, threshold_pullback
 end
