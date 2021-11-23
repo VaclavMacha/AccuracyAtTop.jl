@@ -1,7 +1,7 @@
 name = "AccuracyAtTop"
 uuid = "99d982fd-5277-407e-85b7-ffc618e6d0f5"
 authors = ["Vaclav Macha <vaclav.macha92@gmail.com>"]
-version = "0.1.0"
+version = "0.3.1"
 
 [deps]
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
